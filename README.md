@@ -14,7 +14,7 @@ An unofficial, open-source replacement for the Hitscan Utility, for the **Hitsca
 - **Configurator.** A browser page for DPI, polling rate, lift-off distance, sensor options, sleep, debounce and
   buttons. Open it from the tray.
 
-![The configurator's Settings page](docs/configurator-settings.png)
+<img src="docs/configurator-settings.png" width="720" alt="The configurator's Settings page in demo mode">
 
 ## Install
 
