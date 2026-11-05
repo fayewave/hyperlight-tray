@@ -7,7 +7,7 @@
   "UUID": "com.fayewave.hyperlight",
   "URL": "https://github.com/fayewave/hyperlight-tray",
   "Icon": "imgs/plugin",
-  "Category": "Hyperlight",
+  "Category": "Hyperlight Tray",
   "CategoryIcon": "imgs/category",
   "CodePath": "bin/plugin.js",
   "Nodejs": {
@@ -32,11 +32,9 @@
       "Controllers": ["Keypad"],
       "PropertyInspectorPath": "ui/battery.html",
       "SupportedInMultiActions": false,
-      "UserTitleEnabled": false,
       "States": [
         {
-          "Image": "imgs/key",
-          "ShowTitle": false
+          "Image": "imgs/key"
         }
       ]
     }

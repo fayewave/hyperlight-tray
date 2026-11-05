@@ -40,7 +40,7 @@ effects. Firmware updates and receiver pairing are left out on purpose.
 
 Download `com.fayewave.hyperlight.streamDeckPlugin` from
 [Releases](https://github.com/fayewave/hyperlight-tray/releases/latest) and double-click it. Then drag
-**Hyperlight > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
+**Hyperlight Tray > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
 
 The key shows the same number and colours as the tray icon, with the time remaining or "Charging" underneath, and
 the blue dot when there's an update (either can be hidden in the key's settings). Press it to re-read the battery, or hold it to open the configurator. If the
