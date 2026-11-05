@@ -42,6 +42,7 @@ pub const ICON_SLIDERS: u16 = 0xE9E9;
 pub const ICON_STARTUP: u16 = 0xE768; // outline play triangle
 pub const ICON_POWER: u16 = 0xE7E8;
 pub const ICON_CHARGING: u16 = 0xEA93;
+pub const ICON_DOWNLOAD: u16 = 0xE896;
 
 /// Battery glyph for a level: Battery0..Battery9 are E850..E859, Battery10 is E83F.
 pub fn battery_icon(percent: u8) -> u16 {
@@ -58,13 +59,18 @@ pub enum Item {
     /// button on the right (id, icon) that runs without closing the menu.
     Status { icon: u16, text: String, detail: String, button: Option<(usize, u16)> },
     Action { id: usize, icon: u16, text: String },
+    /// An action in the accent colour with a dot on the right ("Update available").
+    Link { id: usize, icon: u16, text: String },
     Toggle { id: usize, icon: u16, text: String, on: bool },
     Separator,
 }
 
 impl Item {
     fn interactive(&self) -> bool {
-        matches!(self, Item::Action { .. } | Item::Toggle { .. } | Item::Status { button: Some(_), .. })
+        matches!(
+            self,
+            Item::Action { .. } | Item::Link { .. } | Item::Toggle { .. } | Item::Status { button: Some(_), .. }
+        )
     }
     /// Height at 96 DPI.
     fn height(&self) -> i32 {
@@ -72,7 +78,7 @@ impl Item {
             Item::Title { .. } => 26,
             Item::Status { detail, .. } if !detail.is_empty() => 40,
             Item::Status { .. } => 28,
-            Item::Action { .. } | Item::Toggle { .. } => 30,
+            Item::Action { .. } | Item::Link { .. } | Item::Toggle { .. } => 30,
             Item::Separator => 9,
         }
     }
@@ -88,6 +94,8 @@ struct Palette {
     box_off: u32,
     box_on: u32,
     check: u32,
+    /// Links and the update dot (same blues as the tray badge).
+    accent: u32,
     shadow: f32,
 }
 
@@ -101,6 +109,7 @@ const DARK: Palette = Palette {
     box_off: 0x5A6468,
     box_on: 0xE5E7E9,
     check: 0x171B1E,
+    accent: 0x4CC2FF,
     shadow: 0.38,
 };
 
@@ -114,6 +123,7 @@ const LIGHT: Palette = Palette {
     box_off: 0x8A949A,
     box_on: 0x171B1E,
     check: 0xF4F5F6,
+    accent: 0x0067C0,
     shadow: 0.20,
 };
 
@@ -353,6 +363,7 @@ unsafe fn measure_width(m: &Menu) -> i32 {
                 text_width(m, text, TEXT).max(text_width(m, detail, SMALL)) + extra
             }
             Item::Action { text, .. } => text_width(m, text, TEXT),
+            Item::Link { text, .. } => text_width(m, text, TEXT) + m.px(24.0),
             Item::Toggle { text, .. } => text_width(m, text, TEXT) + m.px(34.0),
             Item::Separator => 0,
         };
@@ -485,6 +496,12 @@ unsafe fn render(m: &mut Menu) {
                     shape(&mut panel, b, m.px(4.0) as f32, p.box_off, Some(lw));
                 }
             }
+            Item::Link { .. } => {
+                let s = m.px(7.0);
+                let dx = right - m.px(14.0) - s;
+                let dy = (top + bottom - s) / 2;
+                shape(&mut panel, RECT { left: dx, top: dy, right: dx + s, bottom: dy + s }, s as f32 / 2.0, p.accent, None);
+            }
             _ => {}
         }
     }
@@ -526,6 +543,10 @@ unsafe fn render(m: &mut Menu) {
                 }
                 Item::Action { icon, text: t, .. } | Item::Toggle { icon, text: t, .. } => {
                     draw(&g(*icon), ICON, p.text, icon_box, Align::Center);
+                    draw(t, TEXT, p.text, text_box, Align::Leading);
+                }
+                Item::Link { icon, text: t, .. } => {
+                    draw(&g(*icon), ICON, p.accent, icon_box, Align::Center);
                     draw(t, TEXT, p.text, text_box, Align::Leading);
                 }
             }
@@ -660,7 +681,7 @@ fn activate(index: usize) {
             return None;
         }
         let (id, toggle) = match &mut m.items[index] {
-            Item::Action { id, .. } => (*id, false),
+            Item::Action { id, .. } | Item::Link { id, .. } => (*id, false),
             Item::Status { button: Some((id, _)), .. } => (*id, true),
             Item::Toggle { id, on, .. } => {
                 *on = !*on;
@@ -815,6 +836,7 @@ mod tests {
                     button: Some((1, ICON_REFRESH)),
                 },
                 Item::Separator,
+                Item::Link { id: 5, icon: ICON_DOWNLOAD, text: "Update available: v0.2.0".into() },
                 Item::Action { id: 2, icon: ICON_SLIDERS, text: "Open Configurator...".into() },
                 Item::Toggle { id: 3, icon: ICON_STARTUP, text: "Start with Windows".into(), on: true },
                 Item::Separator,

@@ -30,18 +30,27 @@ const PORTS: [u16; 5] = [47820, 47821, 47822, 47823, 47824];
 /// `lParam` points at an [`ApiRequest`], which the window fills in.
 pub const WM_TRAY_API: u32 = WM_APP + 4;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct TrayInfo {
     pub threshold: u8,
     pub notify_full: bool,
     pub autostart: bool,
     pub estimate: bool,
+    pub check_updates: bool,
+    /// Tag of a newer release, if one was found.
+    pub update: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ApiCall {
     Get,
-    Set { threshold: Option<u8>, notify_full: Option<bool>, autostart: Option<bool>, estimate: Option<bool> },
+    Set {
+        threshold: Option<u8>,
+        notify_full: Option<bool>,
+        autostart: Option<bool>,
+        estimate: Option<bool>,
+        check_updates: Option<bool>,
+    },
     TestNotification,
 }
 
@@ -235,6 +244,7 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
                     notify_full: json_value(&body, "notifyFull").and_then(parse_bool),
                     autostart: json_value(&body, "autostart").and_then(parse_bool),
                     estimate: json_value(&body, "estimate").and_then(parse_bool),
+                    check_updates: json_value(&body, "checkUpdates").and_then(parse_bool),
                 }
             }
         }
@@ -247,13 +257,21 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
 }
 
 fn info_json(i: &TrayInfo) -> String {
+    // Tags are checked to be plain version text (update::valid_tag), so no escaping needed.
+    let update = match &i.update {
+        Some(t) => format!("\"{t}\""),
+        None => "null".into(),
+    };
     format!(
-        "{{\"version\":\"{}\",\"threshold\":{},\"notifyFull\":{},\"autostart\":{},\"estimate\":{}}}",
+        "{{\"version\":\"{}\",\"threshold\":{},\"notifyFull\":{},\"autostart\":{},\"estimate\":{},\
+         \"checkUpdates\":{},\"update\":{update},\"updateUrl\":\"{}\"}}",
         env!("CARGO_PKG_VERSION"),
         i.threshold,
         i.notify_full,
         i.autostart,
-        i.estimate
+        i.estimate,
+        i.check_updates,
+        hyperlight::update::release_page(),
     )
 }
 
@@ -328,6 +346,16 @@ mod tests {
         assert!(post(&format!("http://{host}"), "text/plain").starts_with("HTTP/1.1 403"));
         // No tray window in tests, so an allowed request reaches the tray and gets 503.
         assert!(post(&format!("http://{host}"), "application/json").starts_with("HTTP/1.1 503"));
+    }
+
+    #[test]
+    fn info_json_shape() {
+        let mut i = TrayInfo { threshold: 10, check_updates: true, ..Default::default() };
+        assert!(info_json(&i).contains("\"checkUpdates\":true,\"update\":null,"));
+        i.update = Some("v0.2.0".into());
+        let j = info_json(&i);
+        assert!(j.contains("\"update\":\"v0.2.0\""), "{j}");
+        assert!(j.contains("\"updateUrl\":\"https://github.com/"), "{j}");
     }
 
     #[test]

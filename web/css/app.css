@@ -30,6 +30,7 @@
   --level-high: #6ccb5f;
   --level-mid: #ffa94d;
   --level-low: #ff6b61;
+  --accent: #4cc2ff;
   --orange-soft: rgb(255 140 40 / 13%);
   --orange-line: rgb(255 150 60 / 45%);
   color-scheme: dark;
@@ -64,6 +65,7 @@
   --level-high: #0e700e;
   --level-mid: #a85200;
   --level-low: #c42b1c;
+  --accent: #0067c0;
   --orange-soft: #fff0e1;
   --orange-line: #f2b47a;
   color-scheme: light;
@@ -145,6 +147,17 @@ button, input, select { font: inherit; color: inherit; }
 .ind.ok { color: var(--text-2); }
 .ind.asleep { color: var(--warn); }
 
+/* "Update available": same blue dot as the tray icon's badge */
+.update-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.update-link {
+  display: inline-flex; align-items: center; gap: 9px; color: var(--text-2); text-decoration: none;
+}
+.update-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.update-link svg { width: 12px; height: 12px; }
+
 h1.page {
   margin: 34px 0 32px; font-size: 32px; font-weight: 500; letter-spacing: -0.8px; line-height: 1.25;
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
@@ -216,7 +229,7 @@ select.wide { width: min(100%, 652px); padding-block: 11px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 12px 18px; border-radius: 5px; border: 1px solid var(--line-2);
-  background: var(--panel-2); color: var(--text); font-weight: 600; cursor: pointer; white-space: nowrap;
+  background: var(--panel-2); color: var(--text); font-weight: 600; cursor: pointer; white-space: nowrap; text-decoration: none;
 }
 .btn:hover:not(:disabled) { border-color: var(--muted); }
 .btn-primary { background: var(--sel-bg); color: var(--sel-ink); border-color: var(--sel-bg); }

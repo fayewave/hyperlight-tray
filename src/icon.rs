@@ -47,6 +47,11 @@ pub fn color(tone: Tone, light_taskbar: bool) -> u32 {
     }
 }
 
+/// The "update available" dot: Windows' accent blues for each taskbar mode.
+pub fn badge_color(light_taskbar: bool) -> u32 {
+    if light_taskbar { 0x0067C0 } else { 0x4CC2FF }
+}
+
 pub fn taskbar_is_light() -> bool {
     let mut value = 0u32;
     let mut size = 4u32;
@@ -182,8 +187,41 @@ fn ink_bounds(cov: &[u8], canvas: i32) -> Option<(i32, i32, i32, i32)> {
     (r >= 0).then_some((l, t, r, b))
 }
 
-pub fn make_icon(text: &str, rgb: u32, size: i32) -> HICON {
-    let px = render_pixels(text, rgb, size);
+/// Puts a small dot in the top-right corner, with a transparent ring cut out of
+/// the digits around it so it stays readable where they overlap.
+pub fn add_badge(px: &mut [u32], size: i32, rgb: u32) {
+    let s = size as f32;
+    let r = (s * 0.14).max(2.3);
+    let gap = (s / 16.0).max(1.0);
+    let (cx, cy) = (s - r, r);
+    let (cr, cg, cb) = ((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    for y in 0..size {
+        for x in 0..size {
+            let (fx, fy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+            let d = (fx * fx + fy * fy).sqrt() - r;
+            let cut = (0.5 - (d - gap)).clamp(0.0, 1.0);
+            if cut <= 0.0 {
+                continue;
+            }
+            let dot = (0.5 - d).clamp(0.0, 1.0);
+            let i = (y * size + x) as usize;
+            // Premultiplied: fade what's under the ring, then lay the dot over it.
+            let keep = (1.0 - cut) * (1.0 - dot);
+            let ch = |sh: u32, c: u32| -> u32 {
+                let under = ((px[i] >> sh) & 0xFF) as f32;
+                (under * keep + c as f32 * dot).round().min(255.0) as u32
+            };
+            px[i] = (ch(24, 255) << 24) | (ch(16, cr) << 16) | (ch(8, cg) << 8) | ch(0, cb);
+        }
+    }
+}
+
+/// The tray icon: `text` in `rgb`, plus the update dot in `badge` if given.
+pub fn make_icon(text: &str, rgb: u32, size: i32, badge: Option<u32>) -> HICON {
+    let mut px = render_pixels(text, rgb, size);
+    if let Some(c) = badge {
+        add_badge(&mut px, size, c);
+    }
     unsafe {
         let mut bmi: BITMAPINFO = mem::zeroed();
         bmi.bmiHeader.biSize = mem::size_of::<BITMAPINFOHEADER>() as u32;
@@ -252,7 +290,10 @@ mod tests {
         for size in [16, 20, 24, 32] {
             for (text, tone) in [("85", Tone::Healthy), ("35", Tone::Moderate), ("8", Tone::Low), ("–", Tone::Stale)] {
                 for light in [false, true] {
-                    let px = render_pixels(text, color(tone, light), size);
+                    let mut px = render_pixels(text, color(tone, light), size);
+                    if text == "85" {
+                        add_badge(&mut px, size, badge_color(light));
+                    }
                     // Composite onto the taskbar colour so the file shows what users see.
                     let bg: u32 = if light { 0xEEEEEE } else { 0x202020 };
                     let mut data = Vec::new();

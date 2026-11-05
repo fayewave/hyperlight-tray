@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 use hyperlight::estimate::{Estimator, Saved};
 use hyperlight::remaining::{self, Discharge};
 use hyperlight::hid::{self, Battery, Status};
+use hyperlight::update;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::SystemInformation::GetLocalTime;
@@ -33,15 +34,19 @@ const WM_TRAY: u32 = WM_APP + 1;
 const WM_STATUS: u32 = WM_APP + 2;
 /// Sent by `hyperlight-tray.exe --configurator` to an already-running copy.
 const WM_OPEN_CONFIGURATOR: u32 = WM_APP + 3;
+/// A finished update check (lparam: Box<Option<String>>, the latest release tag).
+const WM_UPDATE: u32 = WM_APP + 6;
 const WINDOW_CLASS: &str = "HyperlightTrayWindow";
 const TIMER_POLL: usize = 1;
 const TIMER_SOON: usize = 2;
+const TIMER_UPDATE: usize = 3;
 const TRAY_UID: u32 = 1;
 
 const ID_REFRESH: usize = 1;
 const ID_CONFIGURATOR: usize = 2;
 const ID_EXIT: usize = 3;
 const ID_AUTOSTART: usize = 4;
+const ID_UPDATE: usize = 5;
 /// Always warn again here, even if the user's threshold is higher.
 const CRITICAL: u8 = 5;
 /// The battery has to climb this far above a threshold before that alert re-arms.
@@ -50,6 +55,10 @@ const REARM_MARGIN: u8 = 5;
 const POLL_MS: u32 = 30_000;
 /// Opening the menu refreshes the reading if it is older than this.
 const MENU_REFRESH_AGE: Duration = Duration::from_secs(60);
+/// First update check, a little after start so it doesn't compete with sign-in.
+const UPDATE_FIRST_MS: u32 = 15_000;
+/// Then once a day.
+const UPDATE_EVERY_MS: u32 = 24 * 60 * 60 * 1000;
 
 const DBT_DEVNODES_CHANGED: usize = 0x0007;
 const PBT_APMRESUMEAUTOMATIC: usize = 0x0012;
@@ -106,6 +115,8 @@ struct App {
     warned_full: bool,
     /// Recent discharge steps, for the time-remaining estimate.
     discharge: Discharge,
+    /// Tag of a newer release on GitHub, if the last check found one.
+    update: Option<String>,
 }
 
 thread_local! {
@@ -160,12 +171,17 @@ impl App {
             (Some(Status::MouseOffline), Some((b, _, _))) => (b.percent.to_string(), Tone::Stale),
             _ => ("–".to_string(), Tone::Stale),
         };
-        let new_icon = icon::make_icon(&text, icon::color(tone, light), icon::tray_icon_size());
+        let badge = self.update.is_some().then(|| icon::badge_color(light));
+        let new_icon = icon::make_icon(&text, icon::color(tone, light), icon::tray_icon_size(), badge);
         let (line1, line2) = self.summary();
         let tip = match self.status {
             Some(Status::Battery(b)) => format!("Mouse: {}\n{line2}", self.level_text(&b)),
             _ if line2.is_empty() => line1,
             _ => format!("{line1}\n{line2}"),
+        };
+        let tip = match &self.update {
+            Some(tag) => format!("{tip}\nUpdate available: {tag}"),
+            None => tip,
         };
 
         let mut n = self.nid();
@@ -290,8 +306,12 @@ impl App {
     fn menu_items(&self) -> Vec<menu::Item> {
         use menu::Item;
         let (icon, text, detail) = self.status_row();
-        vec![
-            Item::Title { icon: menu::ICON_MOUSE, text: "Hyperlight Tray".into() },
+        let mut items = vec![Item::Title { icon: menu::ICON_MOUSE, text: "Hyperlight Tray".into() }];
+        if let Some(tag) = &self.update {
+            // Opens the latest release on GitHub.
+            items.push(Item::Link { id: ID_UPDATE, icon: menu::ICON_DOWNLOAD, text: format!("Update available: {tag}") });
+        }
+        items.extend([
             Item::Separator,
             // The small refresh button re-reads the battery and updates this row in place.
             Item::Status { icon, text, detail, button: Some((ID_REFRESH, menu::ICON_REFRESH)) },
@@ -306,7 +326,29 @@ impl App {
             },
             Item::Separator,
             Item::Action { id: ID_EXIT, icon: menu::ICON_POWER, text: "Exit".into() },
-        ]
+        ]);
+        items
+    }
+
+    /// Result of an update check: `tag` is the latest release's tag, or None if
+    /// the check failed (offline, no releases yet), which leaves things as they were.
+    fn on_update(&mut self, tag: Option<String>) {
+        let Some(tag) = tag.filter(|t| update::valid_tag(t)) else { return };
+        let newer = (self.cfg.check_updates && update::is_newer(env!("CARGO_PKG_VERSION"), &tag)).then_some(tag);
+        if newer != self.update {
+            self.update = newer;
+            self.redraw();
+        }
+    }
+
+    fn set_check_updates(&mut self, on: bool) {
+        self.cfg.check_updates = on;
+        self.cfg.save();
+        if on {
+            unsafe { SetTimer(self.hwnd, TIMER_UPDATE, 1000, None) };
+        } else if self.update.take().is_some() {
+            self.redraw();
+        }
     }
 
     fn set_show_estimate(&mut self, on: bool) {
@@ -322,7 +364,10 @@ impl App {
             web::ApiCall::TestNotification => {
                 self.notify("Test notification", "Hyperlight Tray notifications are working.", false)
             }
-            web::ApiCall::Set { threshold, notify_full, autostart: start, estimate } => {
+            web::ApiCall::Set { threshold, notify_full, autostart: start, estimate, check_updates } => {
+                if let Some(on) = check_updates {
+                    self.set_check_updates(on);
+                }
                 if let Some(on) = estimate {
                     self.set_show_estimate(on);
                 }
@@ -351,6 +396,8 @@ impl App {
             notify_full: self.cfg.notify_full,
             autostart: autostart::is_enabled(),
             estimate: self.cfg.show_estimate,
+            check_updates: self.cfg.check_updates,
+            update: self.update.clone(),
         });
     }
 }
@@ -370,6 +417,29 @@ fn start_poll(hwnd: HWND) {
             }
         }
     });
+}
+
+/// Asks GitHub for the latest release on a worker thread. Set
+/// HYPERLIGHT_FAKE_UPDATE=v9.9.9 to pretend a release exists (for testing).
+fn start_update_check(hwnd: HWND) {
+    if with_app(|a| a.cfg.check_updates) != Some(true) {
+        return;
+    }
+    let target = hwnd as isize;
+    std::thread::spawn(move || {
+        let tag = std::env::var("HYPERLIGHT_FAKE_UPDATE").ok().or_else(|| update::latest_tag(update::REPO));
+        let tag = Box::into_raw(Box::new(tag));
+        unsafe {
+            if PostMessageW(target as HWND, WM_UPDATE, 0, tag as LPARAM) == 0 {
+                drop(Box::from_raw(tag));
+            }
+        }
+    });
+}
+
+fn open_url(url: &str) {
+    let (verb, url) = (wide("open"), wide(url));
+    unsafe { ShellExecuteW(null_mut(), verb.as_ptr(), url.as_ptr(), null(), null(), SW_SHOWNORMAL) };
 }
 
 fn open_configurator() {
@@ -398,6 +468,7 @@ unsafe fn run_command(hwnd: HWND, id: usize) {
         ID_REFRESH => start_poll(hwnd),
         ID_CONFIGURATOR => open_configurator(),
         ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
+        ID_UPDATE => open_url(&update::release_page()),
         ID_EXIT => {
             DestroyWindow(hwnd);
         }
@@ -430,6 +501,16 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         WM_STATUS => {
             let status = *Box::from_raw(lp as *mut Status);
             with_app(|a| a.on_status(status));
+            0
+        }
+        WM_UPDATE => {
+            let tag = *Box::from_raw(lp as *mut Option<String>);
+            with_app(|a| a.on_update(tag));
+            0
+        }
+        WM_TIMER if wp == TIMER_UPDATE => {
+            SetTimer(hwnd, TIMER_UPDATE, UPDATE_EVERY_MS, None);
+            start_update_check(hwnd);
             0
         }
         WM_TIMER => {
@@ -545,6 +626,7 @@ fn main() {
                 warned_critical: false,
                 warned_full: false,
                 discharge: saved::load_discharge(),
+                update: None,
             })
         });
         with_app(|a| {
@@ -560,6 +642,7 @@ fn main() {
             }
         });
         start_poll(hwnd);
+        SetTimer(hwnd, TIMER_UPDATE, UPDATE_FIRST_MS, None);
         if open_cfg {
             PostMessageW(hwnd, WM_OPEN_CONFIGURATOR, 0, 0);
         }

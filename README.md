@@ -37,8 +37,12 @@ effects. Firmware updates and receiver pairing are left out on purpose.
 ## Privacy and safety
 
 No driver, no admin rights and no hooks. It uses the same user-mode HID calls as the official utility. The
-configurator is served on `localhost` only, and the only internet request is the page loading its fonts from
-Google Fonts.
+configurator is served on `localhost` only.
+
+It makes two internet requests. The configurator loads its fonts from Google Fonts. Once a day, the tray asks
+GitHub's public API for the latest release. When there's a newer version, a blue dot appears on the tray number,
+and the tray menu and configurator link to the release page. Nothing is downloaded or installed automatically.
+Turn **Check for updates** off in the configurator to stop this request.
 
 ## Build
 

@@ -74,6 +74,10 @@ const TIPS = {
     title: "Time remaining",
     body: "Adds an estimate of the hours left to the tray tooltip and menu, for example \u201cMouse: 85% (~12h)\u201d. It learns from how fast the battery has been dropping since you last charged, so it needs a few percent of use before it appears.",
   },
+  updates: {
+    title: "Check for updates",
+    body: "Once a day, Hyperlight Tray asks GitHub whether there's a newer release. If there is, a blue dot appears on the tray number and here. Nothing is downloaded or installed for you, and nothing about you or your mouse is sent.",
+  },
   autostart: {
     title: "Start with Windows",
     body: "Starts Hyperlight Tray when you sign in, so the battery number and alerts are always there. Also in the tray icon's menu.",
@@ -415,15 +419,29 @@ function batteryIcon(pct, charging) {
     `<rect x="2.5" y="6" width="${w}" height="4" rx=".5" fill="${fill}"/>`, "batt");
 }
 
+const EXTERNAL_ICON = '<path d="M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>';
+
+/** Link to the newer release, when Hyperlight Tray found one. */
+function updateLink(label) {
+  const t = state.tray;
+  if (!t?.update) return null;
+  return h("a", {
+    class: "update-link", href: t.updateUrl, target: "_blank", rel: "noopener noreferrer",
+    title: `Hyperlight Tray ${t.update} is out (you have v${t.version}). Opens the release on GitHub.`,
+  }, h("span", { class: "update-dot", "aria-hidden": "true" }), label ?? "Update available", icon(EXTERNAL_ICON));
+}
+
 function renderConnbar() {
   if (!state.dev) {
     $connbar.replaceChildren(
       h("div", { class: "left" }, h("span", { class: "model" }, "Hyperlight"), h("span", { class: "sep" }), h("span", {}, "Not connected")),
-      h("div", { class: "right" }));
+      h("div", { class: "right" }, updateLink()));
     return;
   }
   const kind = state.dev.demo ? "Demo mode" : state.dev.wired ? "Cable" : "Wireless receiver";
   const right = [];
+  const upd = updateLink();
+  if (upd) right.push(upd);
   if (state.shown !== null && state.battery) {
     const b = state.battery;
     right.push(h("span", { class: "ind", title: `${b.charging ? "Charging" : "On battery"} · ${(b.millivolts / 1000).toFixed(2)} V` },
@@ -763,6 +781,12 @@ function trayCards() {
     h("div", { class: "row" },
       h("span", { class: "row-name" }, "Start with Windows", info("autostart")),
       toggle("Start with Windows", t.autostart, (on) => saveTray("Start with Windows", { autostart: on }))),
+    h("div", { class: "row" },
+      h("span", { class: "row-name" }, "Check for updates", info("updates")),
+      toggle("Check for updates", t.checkUpdates, (on) => saveTray("Check for updates", { checkUpdates: on }))),
+    t.update && h("div", { class: "row" },
+      h("span", { class: "row-name" }, updateLink(`${t.update} is available`)),
+      h("a", { class: "btn btn-sm", href: t.updateUrl, target: "_blank", rel: "noopener noreferrer" }, "Download")),
     h("div", { class: "row" },
       h("span", { class: "row-name" }, "Test notification"),
       h("button", { class: "btn btn-sm", onclick: test }, "Send")));
