@@ -776,6 +776,9 @@ document.addEventListener("visibilitychange", () => !document.hidden && tick());
 
 render();
 loadTray();
-if (webHidSupported()) {
+if (new URLSearchParams(location.search).has("demo")) {
+  // ?demo opens straight into the demo mouse, e.g. for screenshots or a quick look.
+  attach(new DemoMouse());
+} else if (webHidSupported()) {
   HidMouse.reconnect().then((m) => m && attach(m)).catch((err) => console.warn(err));
 }

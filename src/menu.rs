@@ -876,4 +876,61 @@ mod tests {
         assert_eq!(battery_icon(100), 0xE83F);
         assert_eq!(battery_icon(42), 0xE854);
     }
+
+    /// Renders a sample menu at 2x to %TEMP%\hyperlight-menu-<theme>.rgba (width
+    /// and height as little-endian u32s, then premultiplied BGRA rows) for the
+    /// README screenshot: `cargo test --bin hyperlight-tray -- --ignored`
+    #[test]
+    #[ignore]
+    fn dump_menu_image() {
+        for (name, palette) in [("dark", &DARK), ("light", &LIGHT)] {
+            let items = vec![
+                Item::Title { icon: ICON_MOUSE, text: "Hyperlight Tray".into() },
+                Item::Separator,
+                Item::Status {
+                    icon: battery_icon(85),
+                    text: "Battery 85% (~12h)".into(),
+                    detail: "Not charging · 3.95 V".into(),
+                    button: Some((1, ICON_REFRESH)),
+                },
+                Item::Separator,
+                Item::Action { id: 2, icon: ICON_SLIDERS, text: "Open Configurator...".into() },
+                Item::Toggle { id: 3, icon: ICON_STARTUP, text: "Start with Windows".into(), on: true },
+                Item::Separator,
+                Item::Action { id: 4, icon: ICON_POWER, text: "Exit".into() },
+            ];
+            let scale = 2.0;
+            let mut m = Menu {
+                hwnd: ptr::null_mut(),
+                owner: ptr::null_mut(),
+                items,
+                hover: Some(4),
+                tracking: false,
+                scale,
+                width: 0,
+                height: 0,
+                margin: 0,
+                x: 0,
+                y: 0,
+                phase: Phase::Open,
+                palette,
+                fonts: unsafe { make_fonts(scale) },
+                image: None,
+            };
+            m.margin = m.px(16.0);
+            m.width = unsafe { measure_width(&m) };
+            m.height = m.content_height();
+            unsafe { render(&mut m) };
+            let img = m.image.as_mut().expect("rendered");
+            let mut out = Vec::new();
+            out.extend_from_slice(&(img.w as u32).to_le_bytes());
+            out.extend_from_slice(&(img.h as u32).to_le_bytes());
+            for px in img.pixels().iter() {
+                out.extend_from_slice(&px.to_le_bytes());
+            }
+            let path = std::env::temp_dir().join(format!("hyperlight-menu-{name}.rgba"));
+            std::fs::write(&path, out).unwrap();
+            println!("wrote {}", path.display());
+        }
+    }
 }
