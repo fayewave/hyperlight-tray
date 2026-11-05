@@ -137,6 +137,33 @@ pub fn render_pixels(text: &str, rgb: u32, size: i32) -> Vec<u32> {
         DeleteDC(dc);
         ReleaseDC(ptr::null_mut(), screen);
     }
+    center_ink(&out, size)
+}
+
+/// Moves the drawn glyphs so their visible pixels sit in the middle of the square.
+/// Font metrics put Bahnschrift's digits a pixel or two high, which shows next to
+/// other tray icons. Any spare odd pixel goes above, so it never looks raised.
+fn center_ink(px: &[u32], size: i32) -> Vec<u32> {
+    let s = size as usize;
+    let ink = |x: usize, y: usize| (px[y * s + x] >> 24) > 40;
+    let rows: Vec<usize> = (0..s).filter(|&y| (0..s).any(|x| ink(x, y))).collect();
+    let cols: Vec<usize> = (0..s).filter(|&x| (0..s).any(|y| ink(x, y))).collect();
+    let (Some(&top), Some(&bottom), Some(&left), Some(&right)) =
+        (rows.first(), rows.last(), cols.first(), cols.last())
+    else {
+        return px.to_vec();
+    };
+    let dy = (s - (bottom - top + 1)).div_ceil(2) as isize - top as isize;
+    let dx = ((s - (right - left + 1)) / 2) as isize - left as isize;
+    let mut out = vec![0u32; s * s];
+    for y in 0..s {
+        for x in 0..s {
+            let (ny, nx) = (y as isize + dy, x as isize + dx);
+            if (0..s as isize).contains(&ny) && (0..s as isize).contains(&nx) {
+                out[ny as usize * s + nx as usize] = px[y * s + x];
+            }
+        }
+    }
     out
 }
 
