@@ -34,8 +34,17 @@ test("key options hide the time remaining (number centred) and the update dot", 
   const bare = keySvg(view(s, options({ showRemaining: false, showUpdate: false })));
   assert.match(bare, /y="106"[^>]*>85</);
   assert.doesNotMatch(bare, /~12h|circle/);
-  // Charging is still shown: it isn't an estimate.
-  assert.match(keySvg(view({ ...s, charging: true }, options({ showRemaining: false }))), />Charging</);
+  // Charging and Asleep have their own options.
+  const charging = { ...s, charging: true, remaining: null };
+  assert.match(keySvg(view(charging, options({ showRemaining: false }))), />Charging</);
+  const noCharging = keySvg(view(charging, options({ showCharging: false })));
+  assert.match(noCharging, /y="106"[^>]*>85</);
+  assert.doesNotMatch(noCharging, /Charging/);
+  const asleep = { state: "asleep", percent: 42 };
+  assert.match(keySvg(view(asleep, options({}))), />Asleep</);
+  const noAsleep = keySvg(view(asleep, options({ showAsleep: false })));
+  assert.match(noAsleep, new RegExp(`y="106"[^>]*fill="${COLORS.stale}">42<`));
+  assert.doesNotMatch(noAsleep, /Asleep/);
 });
 
 test("websocket frames round-trip at every length encoding", () => {

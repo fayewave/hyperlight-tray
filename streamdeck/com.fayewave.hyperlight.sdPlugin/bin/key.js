@@ -9,14 +9,20 @@ export function tone(percent) {
   return percent >= 50 ? "healthy" : percent >= 20 ? "moderate" : "low";
 }
 
-/** The key's own options (its settings in Stream Deck); both are on unless turned off. */
+/** The key's own options (its settings in Stream Deck); each is on unless turned off. */
 export function options(settings) {
-  return { remaining: settings?.showRemaining !== false, update: settings?.showUpdate !== false };
+  const on = (k) => settings?.[k] !== false;
+  return {
+    remaining: on("showRemaining"),
+    charging: on("showCharging"),
+    asleep: on("showAsleep"),
+    update: on("showUpdate"),
+  };
 }
 
 /**
  * What to show for a tray reply (see tray.js); undefined means not read yet. With
- * the time remaining hidden, the number moves to the middle of the key.
+ * no line underneath, the number moves to the middle of the key.
  */
 export function view(s, opts = options()) {
   const dot = Boolean(s?.update) && opts.update;
@@ -26,11 +32,11 @@ export function view(s, opts = options()) {
       return {
         text: number(s.percent),
         color: COLORS[tone(s.percent)],
-        caption: s.charging ? "Charging" : opts.remaining ? (s.remaining ?? "") : "",
+        caption: s.charging ? (opts.charging ? "Charging" : "") : opts.remaining ? (s.remaining ?? "") : "",
         dot,
       };
     case "asleep":
-      return { text: number(s.percent), color: COLORS.stale, caption: "Asleep", dot };
+      return { text: number(s.percent), color: COLORS.stale, caption: opts.asleep ? "Asleep" : "", dot };
     case "noReceiver":
       return { text: "–", color: COLORS.stale, caption: "No receiver", dot };
     case "stopped":

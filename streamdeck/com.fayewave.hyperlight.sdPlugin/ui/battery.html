@@ -31,6 +31,8 @@
     <div class="label">Show</div>
     <div class="options">
       <label class="check"><input type="checkbox" id="showRemaining" checked> Time remaining</label>
+      <label class="check"><input type="checkbox" id="showCharging" checked> Charging</label>
+      <label class="check"><input type="checkbox" id="showAsleep" checked> Asleep</label>
       <label class="check"><input type="checkbox" id="showUpdate" checked> Update dot</label>
     </div>
   </div>
@@ -41,7 +43,7 @@
   // eslint-disable-next-line no-unused-vars
   function connectElgatoStreamDeckSocket(port, uuid, registerEvent, _info, actionInfo) {
     const settings = JSON.parse(actionInfo).payload?.settings ?? {};
-    const boxes = ["showRemaining", "showUpdate"].map((id) => document.getElementById(id));
+    const boxes = ["showRemaining", "showCharging", "showAsleep", "showUpdate"].map((id) => document.getElementById(id));
     for (const box of boxes) box.checked = settings[box.id] !== false;
 
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
