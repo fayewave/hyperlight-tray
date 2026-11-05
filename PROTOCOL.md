@@ -73,8 +73,24 @@ Snapping, and Long Distance Mode (`0x16`).
 
 ## Battery percentage
 
-The official app never shows the firmware's percent. It maps millivolts through a fixed curve and smooths the
-result. The full algorithm is in [src/estimate.rs](src/estimate.rs) and summarised in the README.
+The official app never shows the firmware's percent (byte 6 of the `0x04` reply), which jumps around, especially
+while charging. Its `HIDUsb.dll` ("BatteryOptimize") works out its own figure, and Hyperlight Tray and the
+configurator copy it so all three agree. Code: [src/estimate.rs](src/estimate.rs) and `Estimator` in
+[web/js/protocol.js](web/js/protocol.js).
+
+1. **Voltage curve.** Millivolts map to a percent through a fixed table with one entry per 5%: 3050 mV = 0%, then
+   3420, 3480, 3540, 3600, 3660, 3720, 3760, 3800, 3840, 3880, 3920, 3940, 3960, 3980, 4000, 4020, 4040,
+   4060, 4080, up to 4110 mV = 100% (99% while charging). Values between entries are interpolated in five steps.
+2. **Smoothing.** The shown value moves toward that estimate by at most 1% per tick (every 10 s, or every 5 min
+   once charging past 85%):
+   - discharging: it only goes down
+   - charging: it only goes up, and only while the estimate is more than 10 points ahead; it jumps to 100% once
+     the firmware reports 100%
+   - firmware at 15% or less: the shown value drops straight to 15%; at 0%, it shows 0%
+3. **Restarts.** The last shown value is saved with a timestamp, in the official app's case as
+   `HKCU\Software\DeviceBatteryOptimize\BatteryValue_<mouse id> = "<unix time>-<percent>"`. On the next start
+   it's reused if it's under 30 minutes old, allowed to drift toward the new estimate by up to 0.028%/s up or
+   0.014%/s down.
 
 ## Settings block (192 bytes, read with `0x08`)
 
