@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="carbon">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hyperlight Configurator</title>
+  <meta name="description" content="Unofficial open-source web configurator for the Hitscan Hyperlight wireless mouse. Runs in your browser over WebHID.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="wordmark">
+        <span class="wordmark-name" id="wordmark-name">Hyperlight</span>
+        <span class="wordmark-sub">Configurator</span>
+        <span class="badge" title="Not made or endorsed by Hitscan">Unofficial</span>
+      </div>
+      <nav class="nav" id="nav" aria-label="Sections"></nav>
+      <div class="side-foot">
+        <button id="theme-toggle" type="button"><span class="theme-dot" aria-hidden="true"></span><span id="theme-label">Dark</span></button>
+      </div>
+    </aside>
+
+    <div class="content">
+      <div class="content-inner">
+        <div class="connbar" id="connbar" aria-live="polite"></div>
+        <main id="app"></main>
+        <footer class="foot">Hyperlight Configurator · Unofficial · Open source</footer>
+      </div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Rust build output
+/target/
+*.pdb
+
+# Claude Code / AI assistant files
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+
+# Plan and scratch notes (keeps README.md and PROTOCOL.md tracked)
+PLAN.md
+plan.md
+*.plan.md
+*-plan.md
+plans/
+notes/
+scratch/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node, in case tooling is added for the web app
+node_modules/
