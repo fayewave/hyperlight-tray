@@ -72,16 +72,64 @@ pub fn tray_icon_size() -> i32 {
 
 /// Renders `text` centred in a `size`×`size` square. Returns premultiplied BGRA
 /// pixels, top row first.
+///
+/// The font size is found by drawing on a roomier scratch canvas and measuring the
+/// pixels actually drawn, so nothing is ever clipped: font metrics alone put
+/// Bahnschrift's digits too high and sized a lone digit so big its top was cut off.
+/// Every number uses the digit height of "88", so 8 and 85 look the same size.
 pub fn render_pixels(text: &str, rgb: u32, size: i32) -> Vec<u32> {
-    let n = (size * size) as usize;
-    let mut out = vec![0u32; n];
+    let em = fit_em("88", size).min(fit_em(text, size));
+    let canvas = size * 3;
+    let cov = coverage(text, em, size);
+    let mut out = vec![0u32; (size * size) as usize];
+    let Some((l, t, r, b)) = ink_bounds(&cov, canvas) else { return out };
+    // Centre the drawn pixels; a spare odd pixel goes above so it never looks raised.
+    let (w, h) = (r - l + 1, b - t + 1);
+    let ox = (size - w) / 2 - l;
+    let oy = (size - h + 1) / 2 - t;
+    let (cr, cg, cb) = ((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    for y in t..=b {
+        for x in l..=r {
+            let (nx, ny) = (x + ox, y + oy);
+            if (0..size).contains(&nx) && (0..size).contains(&ny) {
+                let a = cov[(y * canvas + x) as usize] as u32;
+                out[(ny * size + nx) as usize] =
+                    (a << 24) | ((cr * a / 255) << 16) | ((cg * a / 255) << 8) | (cb * a / 255);
+            }
+        }
+    }
+    out
+}
+
+/// Largest font size whose drawn pixels fit the icon: full width, and a pixel or
+/// two short of full height so the digits don't touch the edges.
+fn fit_em(text: &str, size: i32) -> i32 {
+    let canvas = size * 3;
+    let max_h = size - (size / 8).max(2);
+    for em in (6..=size * 3 / 2).rev() {
+        if let Some((l, t, r, b)) = ink_bounds(&coverage(text, em, size), canvas) {
+            if r - l < size && b - t < max_h {
+                return em;
+            }
+        }
+    }
+    6
+}
+
+/// Draws white text on black into a (3*size)² canvas, offset by `size` so nothing
+/// clips, and returns per-pixel coverage (0..255).
+fn coverage(text: &str, em: i32, size: i32) -> Vec<u8> {
+    let canvas = size * 3;
+    let n = (canvas * canvas) as usize;
+    let mut out = vec![0u8; n];
     unsafe {
         let screen = GetDC(ptr::null_mut());
         let dc = CreateCompatibleDC(screen);
+        ReleaseDC(ptr::null_mut(), screen);
         let mut bmi: BITMAPINFO = mem::zeroed();
         bmi.bmiHeader.biSize = mem::size_of::<BITMAPINFOHEADER>() as u32;
-        bmi.bmiHeader.biWidth = size;
-        bmi.bmiHeader.biHeight = -size;
+        bmi.bmiHeader.biWidth = canvas;
+        bmi.bmiHeader.biHeight = -canvas;
         bmi.bmiHeader.biPlanes = 1;
         bmi.bmiHeader.biBitCount = 32;
         bmi.bmiHeader.biCompression = BI_RGB as _;
@@ -89,96 +137,49 @@ pub fn render_pixels(text: &str, rgb: u32, size: i32) -> Vec<u32> {
         let dib = CreateDIBSection(dc, &bmi, DIB_RGB_COLORS, &mut bits, ptr::null_mut(), 0);
         if dib.is_null() || bits.is_null() {
             DeleteDC(dc);
-            ReleaseDC(ptr::null_mut(), screen);
             return out;
         }
         let old_bmp = SelectObject(dc, dib);
         ptr::write_bytes(bits as *mut u32, 0, n);
-
-        let text_w: Vec<u16> = text.encode_utf16().collect();
         let face = wide("Bahnschrift SemiBold SemiConden");
-        let mut em = size * 5 / 4;
-        let (font, cap, ascent, width) = loop {
-            let font = CreateFontW(
-                -em, 0, 0, 0, FW_NORMAL as _, 0, 0, 0,
-                DEFAULT_CHARSET as _, OUT_TT_PRECIS as _, CLIP_DEFAULT_PRECIS as _,
-                ANTIALIASED_QUALITY as _, (DEFAULT_PITCH | FF_SWISS) as _, face.as_ptr(),
-            );
-            let prev = SelectObject(dc, font);
-            let mut ext: SIZE = mem::zeroed();
-            GetTextExtentPoint32W(dc, text_w.as_ptr(), text_w.len() as i32, &mut ext);
-            let mut tm: TEXTMETRICW = mem::zeroed();
-            GetTextMetricsW(dc, &mut tm);
-            let cap = cap_height(dc).unwrap_or(em * 7 / 10);
-            if (ext.cx <= size && cap <= size - 2) || em <= 6 {
-                break (font, cap, tm.tmAscent, ext.cx);
-            }
-            SelectObject(dc, prev);
-            DeleteObject(font);
-            em -= 1;
-        };
+        let font = CreateFontW(
+            -em, 0, 0, 0, FW_NORMAL as _, 0, 0, 0,
+            DEFAULT_CHARSET as _, OUT_TT_PRECIS as _, CLIP_DEFAULT_PRECIS as _,
+            ANTIALIASED_QUALITY as _, (DEFAULT_PITCH | FF_SWISS) as _, face.as_ptr(),
+        );
+        let old_font = SelectObject(dc, font);
         SetBkMode(dc, TRANSPARENT as _);
         SetTextColor(dc, 0x00FFFFFF);
-        let baseline = (size + cap + 1) / 2;
-        TextOutW(dc, (size - width) / 2, baseline - ascent, text_w.as_ptr(), text_w.len() as i32);
+        let w: Vec<u16> = text.encode_utf16().collect();
+        TextOutW(dc, size / 2, size / 2, w.as_ptr(), w.len() as i32);
         GdiFlush();
-
-        // White-on-black coverage becomes alpha; tint with the requested colour.
         let src = std::slice::from_raw_parts(bits as *const u32, n);
-        let (r, g, b) = ((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
         for (o, p) in out.iter_mut().zip(src) {
-            let a = ((p >> 16) & 0xFF).max((p >> 8) & 0xFF).max(p & 0xFF);
-            *o = (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
+            *o = ((p >> 16) & 0xFF).max((p >> 8) & 0xFF).max(p & 0xFF) as u8;
         }
-
-        SelectObject(dc, old_bmp);
+        SelectObject(dc, old_font);
         DeleteObject(font);
+        SelectObject(dc, old_bmp);
         DeleteObject(dib);
         DeleteDC(dc);
-        ReleaseDC(ptr::null_mut(), screen);
-    }
-    center_ink(&out, size)
-}
-
-/// Moves the drawn glyphs so their visible pixels sit in the middle of the square.
-/// Font metrics put Bahnschrift's digits a pixel or two high, which shows next to
-/// other tray icons. Any spare odd pixel goes above, so it never looks raised.
-fn center_ink(px: &[u32], size: i32) -> Vec<u32> {
-    let s = size as usize;
-    let ink = |x: usize, y: usize| (px[y * s + x] >> 24) > 40;
-    let rows: Vec<usize> = (0..s).filter(|&y| (0..s).any(|x| ink(x, y))).collect();
-    let cols: Vec<usize> = (0..s).filter(|&x| (0..s).any(|y| ink(x, y))).collect();
-    let (Some(&top), Some(&bottom), Some(&left), Some(&right)) =
-        (rows.first(), rows.last(), cols.first(), cols.last())
-    else {
-        return px.to_vec();
-    };
-    let dy = (s - (bottom - top + 1)).div_ceil(2) as isize - top as isize;
-    let dx = ((s - (right - left + 1)) / 2) as isize - left as isize;
-    let mut out = vec![0u32; s * s];
-    for y in 0..s {
-        for x in 0..s {
-            let (ny, nx) = (y as isize + dy, x as isize + dx);
-            if (0..s as isize).contains(&ny) && (0..s as isize).contains(&nx) {
-                out[ny as usize * s + nx as usize] = px[y * s + x];
-            }
-        }
     }
     out
 }
 
-unsafe fn cap_height(dc: HDC) -> Option<i32> {
-    let need = GetOutlineTextMetricsW(dc, 0, ptr::null_mut());
-    if need == 0 {
-        return None;
+/// Left, top, right, bottom of the clearly drawn pixels.
+fn ink_bounds(cov: &[u8], canvas: i32) -> Option<(i32, i32, i32, i32)> {
+    let (mut l, mut t, mut r, mut b) = (canvas, canvas, -1, -1);
+    for y in 0..canvas {
+        for x in 0..canvas {
+            if cov[(y * canvas + x) as usize] > 40 {
+                l = l.min(x);
+                r = r.max(x);
+                t = t.min(y);
+                b = b.max(y);
+            }
+        }
     }
-    let mut buf = vec![0u64; (need as usize + 7) / 8];
-    let otm = buf.as_mut_ptr() as *mut OUTLINETEXTMETRICW;
-    if GetOutlineTextMetricsW(dc, need, otm) == 0 {
-        return None;
-    }
-    let cap = (*otm).otmsCapEmHeight as i32;
-    (cap > 0).then_some(cap)
+    (r >= 0).then_some((l, t, r, b))
 }
 
 pub fn make_icon(text: &str, rgb: u32, size: i32) -> HICON {
@@ -211,6 +212,36 @@ pub fn make_icon(text: &str, rgb: u32, size: i32) -> HICON {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Rows that have visible pixels: (first, last).
+    fn ink_rows(px: &[u32], size: i32) -> (i32, i32) {
+        let rows: Vec<i32> = (0..size)
+            .filter(|&y| (0..size).any(|x| (px[(y * size + x) as usize] >> 24) > 40))
+            .collect();
+        (rows[0], *rows.last().unwrap())
+    }
+
+    #[test]
+    fn every_level_fits_without_clipping() {
+        for size in [16, 20, 24, 32] {
+            let (_, ref_h) = {
+                let (t, b) = ink_rows(&render_pixels("88", 0xFFFFFF, size), size);
+                (t, b - t)
+            };
+            for n in 0..=100 {
+                let px = render_pixels(&n.to_string(), 0xFFFFFF, size);
+                let (top, bottom) = ink_rows(&px, size);
+                // A clear row above and below: nothing touches (or is cut by) the edge.
+                assert!(top >= 1 && bottom <= size - 2, "{n} at {size}px: rows {top}..{bottom}");
+                // Never taller than "88" (wide numbers may be a touch smaller to fit the
+                // width), and single digits are exactly as tall as two-digit ones.
+                assert!(bottom - top <= ref_h + 1, "{n} at {size}px is taller than 88");
+                if n < 10 {
+                    assert!(((bottom - top) - ref_h).abs() <= 1, "{n} at {size}px isn't as tall as 88");
+                }
+            }
+        }
+    }
 
     /// Writes sample icons as BMPs for eyeballing: `cargo test --bin hyperlight-tray -- --ignored`
     #[test]
