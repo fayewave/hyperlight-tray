@@ -77,8 +77,8 @@ export function keySvg(v) {
   }
   if (captioned) {
     out.push(
-      `<text x="72" y="127" text-anchor="middle" font-family="Segoe UI" font-weight="600" ` +
-        `font-size="21" fill="${MUTED}">${esc(v.caption)}</text>`,
+      `<text x="72" y="128" text-anchor="middle" font-family="Segoe UI" font-weight="600" ` +
+        `font-size="24" fill="${MUTED}">${esc(v.caption)}</text>`,
     );
   }
   if (v.dot) {
