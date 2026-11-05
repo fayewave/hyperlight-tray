@@ -15,12 +15,10 @@ const PAGES = [
   { id: "performance", label: "Performance", icon: '<path d="M2 4h7M12 4h2M2 12h2M7 12h7M9 2v4M4 10v4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' },
   { id: "buttons", label: "Buttons", icon: '<rect x="2" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/>' },
   { id: "device", label: "Device", icon: '<rect x="5" y="1.5" width="6" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v4" stroke="currentColor" stroke-width="1.3"/>' },
-  // Only shown when the page is served by Hyperlight Tray, which answers /api/tray.
-  { id: "tray", label: "Tray", needsTray: true, icon: '<path d="M4 7a4 4 0 0 1 8 0v3l1.2 2H2.8L4 10z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.5 14h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' },
 ];
 
 const state = {
-  /** Tray app settings: null while checking, false when not served by the tray. */
+  /** Tray app settings: null while checking, false when not served by Hyperlight Tray. */
   tray: null,
   dev: null,
   raw: null,
@@ -174,11 +172,9 @@ function toast(msg, kind = "ok") {
   setTimeout(() => t.remove(), kind === "error" ? 5000 : 2200);
 }
 
-const available = (p) => !p.needsTray || !!state.tray;
-
 const page = () => {
   const id = location.hash.replace("#", "");
-  return PAGES.some((p) => p.id === id && available(p)) ? id : "performance";
+  return PAGES.some((p) => p.id === id) ? id : "performance";
 };
 
 // ---------------------------------------------------------------------------
@@ -399,15 +395,11 @@ if (webHidSupported()) {
 
 function renderNav() {
   const current = page();
-  $nav.replaceChildren(...PAGES.filter(available).map((p) => {
-    // The Tray tab works without a mouse connected; the others need one.
-    const usable = !!state.dev || p.needsTray;
-    return h("a", {
-      href: `#${p.id}`,
-      "aria-current": usable && p.id === current ? "page" : null,
-      "aria-disabled": usable ? null : "true",
-    }, icon(p.icon), h("span", {}, p.label));
-  }));
+  $nav.replaceChildren(...PAGES.map((p) => h("a", {
+    href: `#${p.id}`,
+    "aria-current": state.dev && p.id === current ? "page" : null,
+    "aria-disabled": state.dev ? null : "true",
+  }, icon(p.icon), h("span", {}, p.label))));
 }
 
 function batteryIcon(pct, charging) {
@@ -446,9 +438,8 @@ function render() {
   hideTip();
   renderNav();
   renderConnbar();
-  const p = PAGES.find((x) => x.id === page());
-  if (p.needsTray) return $app.replaceChildren(h("h1", { class: "page" }, p.label), trayPage());
   if (!state.dev) return $app.replaceChildren(connectView());
+  const p = PAGES.find((x) => x.id === page());
   const body = [];
   if (!state.awake) body.push(h("div", { class: "notice warn" }, h("span", { class: "dot" }),
     "The mouse is asleep. Move it to wake it up; settings can't be changed until it's awake."));
@@ -566,6 +557,7 @@ function performancePage(s, off) {
     segments(sleepOpts, sleepVal, pickSleep, off, 5));
 
   return h("div", { class: "grid" },
+    state.tray && trayCard(),
     sensitivityCard(s, off),
     polling, lod, sensor, additional);
 }
@@ -742,40 +734,35 @@ function devicePage() {
 // ---------------------------------------------------------------------------
 // tray
 
-function trayPage() {
+/** The tray app's own settings, shown at the top of Performance when served by Hyperlight Tray. */
+function trayCard() {
   const t = state.tray;
-  const alerts = card("Battery alerts", null,
-    h("div", { class: "row", style: "border-bottom:0" },
-      h("span", { class: "row-name" }, "Low battery alert", info("lowAlert"))),
-    segments([0, 5, 10, 15, 20, 25, 30].map((v) => ({ label: v ? String(v) : "Off", unit: v ? "%" : " ", value: v })),
-      t.threshold, (v) => saveTray("Low battery alert", { threshold: v }), false, 7),
-    h("div", { class: "row", style: "margin-top:12px" },
-      h("span", { class: "row-name" }, "Fully charged alert", info("fullAlert")),
-      toggle("Fully charged alert", t.notifyFull, (on) => saveTray("Fully charged alert", { notifyFull: on }))),
-    h("div", { class: "row" },
-      h("span", { class: "row-name" }, "Test notification"),
-      h("button", {
-        class: "btn", onclick: async () => {
-          try {
-            await trayApi.test();
-            toast("Notification sent");
-          } catch {
-            toast("Couldn't reach Hyperlight Tray", "error");
-          }
-        },
-      }, "Send")));
-
-  const kv = (k, v) => h("div", { class: "kv" }, h("span", {}, k), h("span", { class: "v" }, v));
-  const app = card("Hyperlight Tray", h("span", { class: "badge" }, `v${t.version}`),
-    h("div", { class: "row" },
-      h("span", { class: "row-name" }, "Start with Windows", info("autostart")),
-      toggle("Start with Windows", t.autostart, (on) => saveTray("Start with Windows", { autostart: on }))),
-    kv("Battery check", "every 30 s"),
-    kv("Settings folder", String.raw`%APPDATA%\HyperlightTray`));
-
-  alerts.classList.add("span-2");
-  app.classList.add("span-2");
-  return h("div", { class: "grid" }, alerts, app);
+  const test = async () => {
+    try {
+      await trayApi.test();
+      toast("Notification sent");
+    } catch {
+      toast("Couldn't reach Hyperlight Tray", "error");
+    }
+  };
+  const c = card("Hyperlight Tray", h("span", { class: "badge" }, `v${t.version}`),
+    h("div", { class: "tray-grid" },
+      h("div", {},
+        h("div", { class: "row-name", style: "margin-bottom:12px" }, "Low battery alert", info("lowAlert")),
+        segments([0, 5, 10, 15, 20, 25, 30].map((v) => ({ label: v ? String(v) : "Off", unit: v ? "%" : " ", value: v })),
+          t.threshold, (v) => saveTray("Low battery alert", { threshold: v }), false, 7)),
+      h("div", {},
+        h("div", { class: "row" },
+          h("span", { class: "row-name" }, "Fully charged alert", info("fullAlert")),
+          toggle("Fully charged alert", t.notifyFull, (on) => saveTray("Fully charged alert", { notifyFull: on }))),
+        h("div", { class: "row" },
+          h("span", { class: "row-name" }, "Start with Windows", info("autostart")),
+          toggle("Start with Windows", t.autostart, (on) => saveTray("Start with Windows", { autostart: on }))),
+        h("div", { class: "row" },
+          h("span", { class: "row-name" }, "Test notification"),
+          h("button", { class: "btn btn-sm", onclick: test }, "Send")))));
+  c.classList.add("span-2");
+  return c;
 }
 
 // ---------------------------------------------------------------------------

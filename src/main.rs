@@ -272,13 +272,14 @@ impl App {
             };
 
             let (line1, line2) = self.summary();
+            add(menu, MF_STRING | MF_GRAYED, 0, "Hyperlight Tray");
             add(menu, MF_STRING | MF_GRAYED, 0, &line1);
             if !line2.is_empty() {
                 add(menu, MF_STRING | MF_GRAYED, 0, &line2);
             }
             add(menu, MF_SEPARATOR, 0, "");
             add(menu, MF_STRING, ID_REFRESH, "&Refresh now");
-            // Alert settings live in the configurator's Tray tab; Start with Windows is in both.
+            // Alert settings are on the configurator's Performance page; Start with Windows is in both.
             add(menu, MF_STRING, ID_CONFIGURATOR, "Open &Configurator…");
             let start = if autostart::is_enabled() { MF_CHECKED } else { MF_UNCHECKED };
             add(menu, MF_STRING | start, ID_AUTOSTART, "Start with &Windows");
@@ -288,7 +289,7 @@ impl App {
         }
     }
 
-    /// Answers the configurator's Tray tab (see web.rs), on the UI thread.
+    /// Answers the configurator's Hyperlight Tray card (see web.rs), on the UI thread.
     fn api(&mut self, req: &mut web::ApiRequest) {
         match req.call {
             web::ApiCall::Get => {}
