@@ -128,12 +128,14 @@ struct Fonts {
     small: HFONT,
     icon: HFONT,
     icon_small: HFONT,
+    /// The battery glyph is wide and flat, so the status row uses a bigger size.
+    icon_large: HFONT,
 }
 
 impl Drop for Fonts {
     fn drop(&mut self) {
         unsafe {
-            for f in [self.text, self.bold, self.small, self.icon, self.icon_small] {
+            for f in [self.text, self.bold, self.small, self.icon, self.icon_small, self.icon_large] {
                 DeleteObject(f);
             }
         }
@@ -354,7 +356,10 @@ pub fn show(owner: HWND, items: Vec<Item>) {
 }
 
 unsafe fn make_fonts(scale: f32) -> Fonts {
+    // Text uses ClearType; icons use plain anti-aliasing, which keeps thin icon
+    // strokes smooth instead of jagged.
     let font = |px: f32, weight: i32, face: &str| {
+        let quality = if face.starts_with("Segoe UI") { CLEARTYPE_QUALITY } else { ANTIALIASED_QUALITY };
         let f = wide(face);
         CreateFontW(
             -(px * scale).round() as i32,
@@ -368,7 +373,7 @@ unsafe fn make_fonts(scale: f32) -> Fonts {
             DEFAULT_CHARSET as _,
             OUT_TT_PRECIS as _,
             CLIP_DEFAULT_PRECIS as _,
-            CLEARTYPE_QUALITY as _,
+            quality as _,
             (DEFAULT_PITCH | FF_DONTCARE) as _,
             f.as_ptr(),
         )
@@ -380,6 +385,7 @@ unsafe fn make_fonts(scale: f32) -> Fonts {
         small: font(11.5, FW_NORMAL as i32, "Segoe UI"),
         icon: font(14.0, FW_NORMAL as i32, icon_face),
         icon_small: font(11.0, FW_NORMAL as i32, icon_face),
+        icon_large: font(19.0, FW_NORMAL as i32, icon_face),
     }
 }
 
@@ -539,7 +545,7 @@ unsafe fn render(m: &mut Menu) {
 
     let dc = panel.dc;
     SetBkMode(dc, TRANSPARENT as _);
-    for (i, (it, &(top, bottom))) in m.items.iter().zip(rows.iter()).enumerate() {
+    for (it, &(top, bottom)) in m.items.iter().zip(rows.iter()) {
         let icon_box = RECT { left: icon_x, top, right: icon_x + icon_w, bottom };
         let mut text_box = RECT { left: text_x, top, right: right - m.px(10.0), bottom };
         match it {
@@ -549,11 +555,11 @@ unsafe fn render(m: &mut Menu) {
                 text(dc, m.fonts.text, p.muted, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
             }
             Item::Status { icon, text: t, detail, button } => {
-                glyph(dc, m.fonts.icon, p.text, *icon, icon_box);
+                let wide_box = RECT { left: icon_box.left - m.px(2.0), right: icon_box.right + m.px(2.0), ..icon_box };
+                glyph(dc, m.fonts.icon_large, p.text, *icon, wide_box);
                 if let Some((_, b_icon)) = button {
                     let (l, bt, r, bb) = m.button_rect((top, bottom));
-                    let colour = if m.hover == Some(i) { p.text } else { p.muted };
-                    glyph(dc, m.fonts.icon_small, colour, *b_icon, RECT { left: l, top: bt, right: r, bottom: bb });
+                    glyph(dc, m.fonts.icon, p.text, *b_icon, RECT { left: l, top: bt, right: r, bottom: bb });
                     text_box.right = l - m.px(6.0);
                 }
                 if detail.is_empty() {
