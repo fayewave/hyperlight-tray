@@ -27,3 +27,6 @@ desktop.ini
 
 # Node, in case tooling is added for the web app
 node_modules/
+
+# Packed Stream Deck plugin (tools/pack-streamdeck.ps1)
+/dist/

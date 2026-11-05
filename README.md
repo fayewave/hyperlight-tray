@@ -16,6 +16,7 @@ An unofficial, open-source alternative to the Hitscan Utility, for the original 
 
 - **Web Configurator.** A browser page for DPI, polling rate, lift-off distance, sensor options, sleep, debounce and
   buttons. Open it from the tray.
+- **Stream Deck plugin.** The tray's battery number on a Stream Deck key.
 
 ## Install
 
@@ -35,10 +36,21 @@ mouse.
 Not supported yet: keyboard keys, media keys or macros on buttons, onboard profiles, DPI above 12,800, and lighting
 effects. Firmware updates and receiver pairing are left out on purpose.
 
+## Stream Deck
+
+Download `com.fayewave.hyperlight.streamDeckPlugin` from
+[Releases](https://github.com/fayewave/hyperlight-tray/releases/latest) and double-click it. Then drag
+**Hyperlight > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
+
+The key shows the same number and colours as the tray icon, with the time remaining or "Charging" underneath, and
+the blue dot when there's an update. Press it to re-read the battery, or hold it to open the configurator. If the
+tray isn't running, pressing the key starts it.
+
 ## Privacy and safety
 
-No driver, no admin rights and no hooks. It uses the same user-mode HID calls as the official utility. The
-configurator is served on `localhost` only.
+No driver, no admin rights and no hooks. It uses the same user-mode HID calls as the official utility. The tray's
+small web server (for the configurator and the Stream Deck plugin) listens on `localhost` only, and only the
+configurator page can change settings through it.
 
 It makes two internet requests. The configurator loads its fonts from Google Fonts. Once a day, the tray asks
 GitHub's public API for the latest release. When there's a newer version, a blue dot appears on the tray number,
@@ -53,7 +65,8 @@ Needs Rust (MSVC toolchain) and the Windows SDK.
 cargo build --release
 ```
 
-Tests: `cargo test` and `node --test web/test`. `hyperlight-probe --settings` prints the mouse's settings
+Tests: `cargo test`, `node --test web/test` and `node --test streamdeck/test`. `pwsh tools/pack-streamdeck.ps1`
+packs the Stream Deck plugin into `dist/`. `hyperlight-probe --settings` prints the mouse's settings
 (read-only), which is handy for bug reports. The reverse-engineered protocol is documented in
 [PROTOCOL.md](PROTOCOL.md).
 

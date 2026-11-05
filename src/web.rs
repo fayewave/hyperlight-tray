@@ -1,6 +1,7 @@
 //! Serves the Hyperlight Configurator (the files in web/, built into the exe) on
 //! localhost, so "Open Configurator" works with no hosting and no install. It also
-//! exposes the tray's own settings to the page's Tray tab.
+//! exposes the tray's own settings to the page, and the battery reading to the
+//! Stream Deck plugin (`GET /api/battery`).
 //!
 //! WebHID only runs on secure origins, and http://localhost counts as one. Safety:
 //! - binds to the loopback address only
@@ -9,7 +10,7 @@
 //!   server, and the body must be JSON, which other sites can't send without a CORS
 //!   preflight that this server never approves
 //!
-//! It starts on first use and runs on one background thread until the app exits.
+//! It starts with the app and runs on one background thread until the app exits.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -52,12 +53,31 @@ pub enum ApiCall {
         check_updates: Option<bool>,
     },
     TestNotification,
+    /// The current reading.
+    Battery,
+    /// Re-read the battery now; replies with the current (not yet refreshed) reading.
+    Refresh,
+}
+
+/// The battery as the tray shows it, for the Stream Deck plugin.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BatteryInfo {
+    /// "battery", "asleep" (percent is the last reading), "noReceiver" or "checking".
+    pub state: &'static str,
+    pub percent: Option<u8>,
+    pub charging: bool,
+    /// Time-remaining estimate such as "~12h", when there is one and it's switched on.
+    pub remaining: Option<String>,
+    /// Tag of a newer release, if one was found.
+    pub update: Option<String>,
 }
 
 pub struct ApiRequest {
     pub call: ApiCall,
     /// Filled in by the tray window: the settings after the call.
     pub result: Option<TrayInfo>,
+    /// Filled in for `Battery` and `Refresh`.
+    pub battery: Option<BatteryInfo>,
 }
 
 static WINDOW: AtomicIsize = AtomicIsize::new(0);
@@ -67,12 +87,12 @@ pub fn set_window(hwnd: *mut core::ffi::c_void) {
     WINDOW.store(hwnd as isize, Ordering::Relaxed);
 }
 
-fn ask_tray(call: ApiCall) -> Option<TrayInfo> {
+fn ask_tray(call: ApiCall) -> ApiRequest {
     let hwnd = WINDOW.load(Ordering::Relaxed);
+    let mut req = ApiRequest { call, result: None, battery: None };
     if hwnd == 0 {
-        return None;
+        return req;
     }
-    let mut req = ApiRequest { call, result: None };
     let mut out = 0usize;
     // Synchronous: the window handles it on the UI thread while we wait.
     unsafe {
@@ -86,7 +106,7 @@ fn ask_tray(call: ApiCall) -> Option<TrayInfo> {
             &mut out,
         );
     }
-    req.result
+    req
 }
 
 struct File {
@@ -113,10 +133,14 @@ static FILES: &[File] = &[
 
 static PORT: OnceLock<Option<u16>> = OnceLock::new();
 
-/// Starts the server if needed and opens the page in the default browser.
-/// Returns false if no port could be opened.
+/// Starts the server (if it isn't already running) and returns its port.
+pub fn serve() -> Option<u16> {
+    *PORT.get_or_init(start)
+}
+
+/// Opens the page in the default browser. Returns false if no port could be opened.
 pub fn open() -> bool {
-    let Some(port) = *PORT.get_or_init(start) else { return false };
+    let Some(port) = serve() else { return false };
     let url = wide(&format!("http://localhost:{port}/"));
     let verb = wide("open");
     unsafe {
@@ -229,7 +253,8 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
     const JSON: &str = "application/json";
     let call = match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/api/tray") => ApiCall::Get,
-        ("POST", "/api/tray") | ("POST", "/api/tray/test") => {
+        ("GET", "/api/battery") => ApiCall::Battery,
+        ("POST", "/api/tray") | ("POST", "/api/tray/test") | ("POST", "/api/battery/refresh") => {
             // Only the page itself may change things.
             let origin_ok = local.iter().any(|h| req.header("origin").eq_ignore_ascii_case(&format!("http://{h}")));
             if !origin_ok || !req.header("content-type").starts_with(JSON) {
@@ -237,6 +262,8 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
             }
             if req.path == "/api/tray/test" {
                 ApiCall::TestNotification
+            } else if req.path == "/api/battery/refresh" {
+                ApiCall::Refresh
             } else {
                 let body = String::from_utf8_lossy(&req.body);
                 ApiCall::Set {
@@ -250,18 +277,39 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
         }
         _ => return respond(s, "404 Not Found", "text/plain", b"Not found", true),
     };
-    match ask_tray(call) {
-        Some(info) => respond(s, "200 OK", JSON, info_json(&info).as_bytes(), true),
-        None => respond(s, "503 Service Unavailable", "text/plain", b"Tray not ready", true),
+    let reply = ask_tray(call);
+    match (reply.battery, reply.result) {
+        (Some(b), _) => respond(s, "200 OK", JSON, battery_json(&b).as_bytes(), true),
+        (None, Some(info)) => respond(s, "200 OK", JSON, info_json(&info).as_bytes(), true),
+        _ => respond(s, "503 Service Unavailable", "text/plain", b"Tray not ready", true),
     }
+}
+
+fn opt_str(v: &Option<String>) -> String {
+    match v {
+        Some(t) => format!("\"{t}\""),
+        None => "null".into(),
+    }
+}
+
+/// `app` lets the Stream Deck plugin tell this server apart from anything else
+/// that might be on the port. Strings are plain text we made (no escaping needed).
+fn battery_json(b: &BatteryInfo) -> String {
+    let percent = b.percent.map_or("null".to_string(), |p| p.to_string());
+    format!(
+        "{{\"app\":\"hyperlight-tray\",\"version\":\"{}\",\"state\":\"{}\",\"percent\":{percent},\
+         \"charging\":{},\"remaining\":{},\"update\":{}}}",
+        env!("CARGO_PKG_VERSION"),
+        b.state,
+        b.charging,
+        opt_str(&b.remaining),
+        opt_str(&b.update),
+    )
 }
 
 fn info_json(i: &TrayInfo) -> String {
     // Tags are checked to be plain version text (update::valid_tag), so no escaping needed.
-    let update = match &i.update {
-        Some(t) => format!("\"{t}\""),
-        None => "null".into(),
-    };
+    let update = opt_str(&i.update);
     format!(
         "{{\"version\":\"{}\",\"threshold\":{},\"notifyFull\":{},\"autostart\":{},\"estimate\":{},\
          \"checkUpdates\":{},\"update\":{update},\"updateUrl\":\"{}\"}}",
@@ -346,6 +394,23 @@ mod tests {
         assert!(post(&format!("http://{host}"), "text/plain").starts_with("HTTP/1.1 403"));
         // No tray window in tests, so an allowed request reaches the tray and gets 503.
         assert!(post(&format!("http://{host}"), "application/json").starts_with("HTTP/1.1 503"));
+        assert!(get(port, "/api/battery", &host).starts_with("HTTP/1.1 503"));
+        // Refreshing is a change too: a plain GET or a foreign page can't trigger it.
+        assert!(get(port, "/api/battery/refresh", &host).starts_with("HTTP/1.1 404"));
+        let refresh = send(port, &format!(
+            "POST /api/battery/refresh HTTP/1.1\r\nHost: {host}\r\nOrigin: https://evil.example\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"
+        ));
+        assert!(refresh.starts_with("HTTP/1.1 403"));
+    }
+
+    #[test]
+    fn battery_json_shape() {
+        let b = BatteryInfo { state: "battery", percent: Some(85), charging: false, remaining: Some("~12h".into()), update: None };
+        let j = battery_json(&b);
+        assert!(j.starts_with("{\"app\":\"hyperlight-tray\","), "{j}");
+        assert!(j.contains("\"state\":\"battery\",\"percent\":85,\"charging\":false,\"remaining\":\"~12h\",\"update\":null}"), "{j}");
+        let none = battery_json(&BatteryInfo { state: "noReceiver", ..Default::default() });
+        assert!(none.contains("\"percent\":null"), "{none}");
     }
 
     #[test]

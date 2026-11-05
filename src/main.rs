@@ -357,10 +357,42 @@ impl App {
         self.redraw();
     }
 
+    /// The battery as the tray icon shows it, for the Stream Deck plugin.
+    fn battery_info(&self) -> web::BatteryInfo {
+        let (state, b) = match (self.status, &self.last) {
+            (None, _) => ("checking", None),
+            (Some(Status::Battery(b)), _) => ("battery", Some(b)),
+            (Some(Status::MouseOffline), last) => ("asleep", last.as_ref().map(|(b, _, _)| *b)),
+            (Some(Status::NoReceiver), _) => ("noReceiver", None),
+        };
+        let live = b.filter(|_| state == "battery");
+        let remaining = live
+            .filter(|b| self.cfg.show_estimate && !b.charging)
+            .and_then(|b| self.discharge.hours_left(unix_now(), b.percent))
+            .map(remaining::format_hours);
+        web::BatteryInfo {
+            state,
+            percent: b.map(|b| b.percent),
+            charging: live.is_some_and(|b| b.charging),
+            remaining,
+            update: self.update.clone(),
+        }
+    }
+
     /// Answers the configurator's Hyperlight Tray card (see web.rs), on the UI thread.
     fn api(&mut self, req: &mut web::ApiRequest) {
         match req.call {
             web::ApiCall::Get => {}
+            web::ApiCall::Battery => {
+                req.battery = Some(self.battery_info());
+                return;
+            }
+            web::ApiCall::Refresh => {
+                // Polls on the next timer tick (start_poll can't run while APP is borrowed).
+                unsafe { SetTimer(self.hwnd, TIMER_SOON, 10, None) };
+                req.battery = Some(self.battery_info());
+                return;
+            }
             web::ApiCall::TestNotification => {
                 self.notify("Test notification", "Hyperlight Tray notifications are working.", false)
             }
@@ -604,6 +636,8 @@ fn main() {
             return;
         }
         web::set_window(hwnd);
+        // Always on, so the Stream Deck plugin can read the battery.
+        web::serve();
 
         let (cfg, existed) = Config::load();
         if !existed {

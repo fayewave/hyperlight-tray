@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "Hyperlight Battery",
+  "Version": "0.1.0.0",
+  "Author": "fayewave",
+  "Description": "Shows your Hitscan Hyperlight mouse's battery on a key, like the Hyperlight Tray icon. Needs Hyperlight Tray running. Unofficial.",
+  "UUID": "com.fayewave.hyperlight",
+  "URL": "https://github.com/fayewave/hyperlight-tray",
+  "Icon": "imgs/plugin",
+  "Category": "Hyperlight",
+  "CategoryIcon": "imgs/category",
+  "CodePath": "bin/plugin.js",
+  "Nodejs": {
+    "Version": "20"
+  },
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.5"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Actions": [
+    {
+      "UUID": "com.fayewave.hyperlight.battery",
+      "Name": "Mouse Battery",
+      "Icon": "imgs/action",
+      "Tooltip": "Your Hyperlight's battery. Press to refresh, hold to open the configurator.",
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/key",
+          "ShowTitle": false
+        }
+      ]
+    }
+  ]
+}
