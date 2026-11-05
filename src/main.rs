@@ -296,7 +296,7 @@ impl App {
             Item::Status { icon, text, detail, button: Some((ID_REFRESH, menu::ICON_REFRESH)) },
             Item::Separator,
             // Time remaining is switched on and off in the configurator only.
-            Item::Action { id: ID_CONFIGURATOR, icon: menu::ICON_SLIDERS, text: "Open Configurator".into() },
+            Item::Action { id: ID_CONFIGURATOR, icon: menu::ICON_SLIDERS, text: "Open Configurator...".into() },
             Item::Toggle {
                 id: ID_AUTOSTART,
                 icon: menu::ICON_STARTUP,

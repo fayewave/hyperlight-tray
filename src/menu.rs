@@ -41,7 +41,6 @@ pub const ICON_SLIDERS: u16 = 0xE9E9;
 pub const ICON_STARTUP: u16 = 0xE7B5;
 pub const ICON_POWER: u16 = 0xE7E8;
 pub const ICON_CHARGING: u16 = 0xEA93;
-const ICON_CHECK: u16 = 0xE73E;
 
 /// Battery glyph for a level: Battery0..Battery9 are E850..E859, Battery10 is E83F.
 pub fn battery_icon(percent: u8) -> u16 {
@@ -480,6 +479,30 @@ fn shape(s: &mut Surface, r: RECT, radius: f32, rgb: u32, ring: Option<f32>) {
     }
 }
 
+/// Draws an anti-aliased line with round ends into an opaque buffer.
+fn stroke(s: &mut Surface, (ax, ay): (f32, f32), (bx, by): (f32, f32), width: f32, rgb: u32) {
+    let (w, h) = (s.w, s.h);
+    let px = s.pixels();
+    let r = width / 2.0;
+    let (x0, x1) = ((ax.min(bx) - r).floor() as i32, (ax.max(bx) + r).ceil() as i32);
+    let (y0, y1) = ((ay.min(by) - r).floor() as i32, (ay.max(by) + r).ceil() as i32);
+    let (dx, dy) = (bx - ax, by - ay);
+    let len2 = (dx * dx + dy * dy).max(1e-6);
+    for y in y0.max(0)..y1.min(h) {
+        for x in x0.max(0)..x1.min(w) {
+            let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+            // Distance from the pixel centre to the segment.
+            let t = (((fx - ax) * dx + (fy - ay) * dy) / len2).clamp(0.0, 1.0);
+            let (qx, qy) = (ax + t * dx - fx, ay + t * dy - fy);
+            let a = coverage((qx * qx + qy * qy).sqrt() - r);
+            if a > 0.0 {
+                let i = (y * w + x) as usize;
+                px[i] = mix(px[i], rgb, a);
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // drawing
 
@@ -534,6 +557,12 @@ unsafe fn render(m: &mut Menu) {
                 let lw = (1.2 * m.scale).max(1.0);
                 if *on {
                     shape(&mut panel, b, m.px(4.0) as f32, p.box_on, None);
+                    // A drawn tick: the icon font's checkmark is too fine at this size.
+                    let (fx, fy, fs) = (bx as f32, by as f32, s as f32);
+                    let pt = |u: f32, v: f32| (fx + u * fs, fy + v * fs);
+                    let width = (1.9 * m.scale).max(1.5);
+                    stroke(&mut panel, pt(0.25, 0.53), pt(0.43, 0.70), width, p.check);
+                    stroke(&mut panel, pt(0.43, 0.70), pt(0.76, 0.33), width, p.check);
                 } else {
                     shape(&mut panel, b, m.px(4.0) as f32, p.box_off, Some(lw));
                 }
@@ -576,15 +605,9 @@ unsafe fn render(m: &mut Menu) {
                 glyph(dc, m.fonts.icon, p.text, *icon, icon_box);
                 text(dc, m.fonts.text, p.text, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
             }
-            Item::Toggle { icon, text: t, on, .. } => {
+            Item::Toggle { icon, text: t, .. } => {
                 glyph(dc, m.fonts.icon, p.text, *icon, icon_box);
                 text(dc, m.fonts.text, p.text, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
-                if *on {
-                    let s = m.px(15.0);
-                    let bx = right - m.px(10.0) - s;
-                    let by = (top + bottom - s) / 2;
-                    glyph(dc, m.fonts.icon_small, p.check, ICON_CHECK, RECT { left: bx, top: by, right: bx + s, bottom: by + s });
-                }
             }
         }
     }
