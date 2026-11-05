@@ -306,7 +306,11 @@ impl App {
     fn menu_items(&self) -> Vec<menu::Item> {
         use menu::Item;
         let (icon, text, detail) = self.status_row();
-        let mut items = vec![Item::Title { icon: menu::ICON_MOUSE, text: "Hyperlight Tray".into() }];
+        let mut items = vec![Item::Title {
+            icon: menu::ICON_MOUSE,
+            text: "Hyperlight Tray".into(),
+            note: format!("v{}", env!("CARGO_PKG_VERSION")),
+        }];
         if let Some(tag) = &self.update {
             // Opens the latest release on GitHub.
             items.push(Item::Link { id: ID_UPDATE, icon: menu::ICON_DOWNLOAD, text: format!("Update available: {tag}") });

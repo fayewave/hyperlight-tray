@@ -53,8 +53,8 @@ pub fn battery_icon(percent: u8) -> u16 {
 }
 
 pub enum Item {
-    /// Small heading at the top.
-    Title { icon: u16, text: String },
+    /// Small heading at the top, with a quieter note after it (the version).
+    Title { icon: u16, text: String, note: String },
     /// Status: a main line and a quieter second line, with an optional small icon
     /// button on the right (id, icon) that runs without closing the menu.
     Status { icon: u16, text: String, detail: String, button: Option<(usize, u16)> },
@@ -90,6 +90,8 @@ struct Palette {
     hover: u32,
     text: u32,
     muted: u32,
+    /// Quieter than muted: the version next to the title.
+    faint: u32,
     line: u32,
     box_off: u32,
     box_on: u32,
@@ -105,6 +107,7 @@ const DARK: Palette = Palette {
     hover: 0x282E30,
     text: 0xF4F5F6,
     muted: 0x9BA3A7,
+    faint: 0x6B7378,
     line: 0x2C3032,
     box_off: 0x5A6468,
     box_on: 0xE5E7E9,
@@ -119,6 +122,7 @@ const LIGHT: Palette = Palette {
     hover: 0xE9ECEE,
     text: 0x121517,
     muted: 0x626A6F,
+    faint: 0x8A949A,
     line: 0xE1E4E7,
     box_off: 0x8A949A,
     box_on: 0x171B1E,
@@ -357,7 +361,7 @@ unsafe fn measure_width(m: &Menu) -> i32 {
     let mut widest = 0;
     for it in &m.items {
         let w = match it {
-            Item::Title { text, .. } => text_width(m, text, TEXT),
+            Item::Title { text, note, .. } => text_width(m, text, TEXT) + m.px(6.0) + text_width(m, note, SMALL),
             Item::Status { text, detail, button, .. } => {
                 let extra = if button.is_some() { m.px(30.0) } else { 0 };
                 text_width(m, text, TEXT).max(text_width(m, detail, SMALL)) + extra
@@ -507,7 +511,12 @@ unsafe fn render(m: &mut Menu) {
     }
     GdiFlush();
 
-    // Text and icon glyphs, drawn with DirectWrite into the panel buffer.
+    // Text and icon glyphs, drawn with DirectWrite into the panel buffer. (Measuring
+    // isn't possible while drawing, so the title's width is taken first.)
+    let title_w = m.items.iter().find_map(|it| match it {
+        Item::Title { text: t, .. } => Some(text_width(m, t, TEXT)),
+        _ => None,
+    });
     let scale = m.scale;
     text::paint(panel.dc, w, h, |pt| {
         let mut draw = |s: &str, st: Style, rgb: u32, r: RECT, align: Align| {
@@ -519,9 +528,14 @@ unsafe fn render(m: &mut Menu) {
             let mut text_box = RECT { left: text_x, top, right: right - m.px(10.0), bottom };
             match it {
                 Item::Separator => {}
-                Item::Title { icon, text: t } => {
+                Item::Title { icon, text: t, note } => {
                     draw(&g(*icon), ICON_SMALL, p.muted, icon_box, Align::Center);
                     draw(t, TEXT, p.muted, text_box, Align::Leading);
+                    if let Some(w) = title_w {
+                        // Nudged down a touch so the smaller text sits on the same baseline.
+                        let b = RECT { left: text_x + w + m.px(6.0), top: top + m.px(1.0), bottom: bottom + m.px(1.0), ..text_box };
+                        draw(note, SMALL, p.faint, b, Align::Leading);
+                    }
                 }
                 Item::Status { icon, text: t, detail, button } => {
                     let wide_box = RECT { left: icon_box.left - m.px(2.0), right: icon_box.right + m.px(2.0), ..icon_box };
@@ -827,7 +841,7 @@ mod tests {
     fn dump_menu_image() {
         for (name, palette) in [("dark", &DARK), ("light", &LIGHT)] {
             let items = vec![
-                Item::Title { icon: ICON_MOUSE, text: "Hyperlight Tray".into() },
+                Item::Title { icon: ICON_MOUSE, text: "Hyperlight Tray".into(), note: "v0.2.0".into() },
                 Item::Separator,
                 Item::Status {
                     icon: battery_icon(85),
