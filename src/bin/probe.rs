@@ -2,8 +2,8 @@
 //! online and battery commands. Handy for checking a new model or filing a bug report.
 //! Pass `--settings` to also dump and decode the mouse's configuration (read-only).
 //! `--set-polling <hz>` changes the polling rate and verifies it by reading back.
-use hitscan::{estimate, settings};
-use hitscan::hid::{self, CMD_BATTERY, CMD_ONLINE, PID_WIRED};
+use hyperlight::{estimate, settings};
+use hyperlight::hid::{self, CMD_BATTERY, CMD_ONLINE, PID_WIRED};
 
 fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect::<Vec<_>>().join(" ")
@@ -17,7 +17,7 @@ fn main() {
     if let Some(i) = args.iter().position(|a| a == "--set-polling") {
         let Some(code) = args.get(i + 1).and_then(|v| v.parse().ok()).and_then(settings::polling_code)
         else {
-            eprintln!("usage: hitscan-probe --set-polling <1000|500|250|125>");
+            eprintln!("usage: hyperlight-probe --set-polling <1000|500|250|125>");
             std::process::exit(2);
         };
         // Writes are only acknowledged while the mouse is awake; reads work regardless.

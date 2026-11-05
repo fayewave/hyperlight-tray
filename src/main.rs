@@ -1,4 +1,4 @@
-//! Hitscan Tray: shows a Hitscan wireless mouse's battery level in the notification
+//! Hyperlight Tray: shows a Hitscan Hyperlight mouse's battery level in the notification
 //! area and raises a Windows notification when it runs low.
 #![windows_subsystem = "windows"]
 
@@ -13,8 +13,8 @@ use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use hitscan::estimate::{Estimator, Saved};
-use hitscan::hid::{self, Battery, Status};
+use hyperlight::estimate::{Estimator, Saved};
+use hyperlight::hid::{self, Battery, Status};
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::SystemInformation::GetLocalTime;
@@ -158,9 +158,9 @@ impl App {
         let new_icon = icon::make_icon(&text, icon::color(tone, light), icon::tray_icon_size());
         let (line1, line2) = self.summary();
         let tip = if line2.is_empty() {
-            format!("Hitscan mouse\n{line1}")
+            format!("Hyperlight\n{line1}")
         } else {
-            format!("Hitscan mouse\n{line1}\n{line2}")
+            format!("Hyperlight\n{line1}\n{line2}")
         };
 
         let mut n = self.nid();
@@ -227,7 +227,7 @@ impl App {
             }
         } else if self.cfg.notify_full && b.percent >= 100 && !self.warned_full {
             self.warned_full = true;
-            self.notify("Mouse fully charged", "Your Hitscan mouse is at 100%.", false);
+            self.notify("Mouse fully charged", "Your Hyperlight is at 100%.", false);
         }
     }
 
@@ -305,7 +305,7 @@ impl App {
             ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
             ID_TEST => self.notify(
                 "Test notification",
-                "Hitscan Tray notifications are working.",
+                "Hyperlight Tray notifications are working.",
                 false,
             ),
             id if (ID_THRESHOLD..=ID_THRESHOLD + 100).contains(&id) => {
@@ -429,14 +429,14 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
 
 fn main() {
     unsafe {
-        let mutex_name = wide("Local\\HitscanTray.SingleInstance");
+        let mutex_name = wide("Local\\HyperlightTray.SingleInstance");
         let _mutex = CreateMutexW(null(), TRUE, mutex_name.as_ptr());
         if GetLastError() == ERROR_ALREADY_EXISTS {
             return;
         }
 
         let hinst = GetModuleHandleW(null());
-        let class = wide("HitscanTrayWindow");
+        let class = wide("HyperlightTrayWindow");
         let mut wc: WNDCLASSW = mem::zeroed();
         wc.lpfnWndProc = Some(wndproc);
         wc.hInstance = hinst;
@@ -448,7 +448,7 @@ fn main() {
 
         // A hidden top-level window (not message-only) so we receive broadcasts like
         // WM_SETTINGCHANGE, WM_DEVICECHANGE and TaskbarCreated.
-        let title = wide("Hitscan Tray");
+        let title = wide("Hyperlight Tray");
         let hwnd = CreateWindowExW(
             0,
             class.as_ptr(),
@@ -494,7 +494,7 @@ fn main() {
             a.schedule();
             if !existed {
                 a.notify(
-                    "Hitscan Tray is running",
+                    "Hyperlight Tray is running",
                     "Your mouse battery shows in the tray. Click the number for alert \
                      settings and Start with Windows.",
                     false,

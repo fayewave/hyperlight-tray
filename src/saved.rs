@@ -1,12 +1,12 @@
 //! Remembers the displayed battery value between runs, so a restart doesn't jump.
 //!
-//! Our own copy lives in %APPDATA%\HitscanTray\battery.ini. The official utility
+//! Our own copy lives in %APPDATA%\HyperlightTray\battery.ini. The official utility
 //! keeps the same thing in HKCU\Software\DeviceBatteryOptimize as
 //! `BatteryValue_<mouse id> = "<unix time>-<percent>"`. We read that too (never write
 //! it) and start from whichever is newer, so both apps show the same number.
 use std::{ffi::c_void, path::PathBuf, ptr};
 
-use hitscan::estimate::Saved;
+use hyperlight::estimate::Saved;
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use windows_sys::Win32::System::Registry::*;
 
@@ -22,7 +22,7 @@ fn parse(v: &str) -> Option<Saved> {
 }
 
 fn file() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("HitscanTray").join("battery.ini"))
+    crate::config::data_dir().map(|d| d.join("battery.ini"))
 }
 
 fn read_file() -> Vec<(String, Saved)> {

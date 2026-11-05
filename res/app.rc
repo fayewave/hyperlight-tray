@@ -14,13 +14,13 @@ BEGIN
   BEGIN
     BLOCK "040904b0"
     BEGIN
-      VALUE "CompanyName", "HitscanTray contributors"
-      VALUE "FileDescription", "Hitscan Tray"
+      VALUE "CompanyName", "Hyperlight Tray contributors"
+      VALUE "FileDescription", "Hyperlight Tray"
       VALUE "FileVersion", "0.1.0"
-      VALUE "InternalName", "hitscantray"
+      VALUE "InternalName", "hyperlight-tray"
       VALUE "LegalCopyright", "MIT License"
-      VALUE "OriginalFilename", "hitscantray.exe"
-      VALUE "ProductName", "Hitscan Tray"
+      VALUE "OriginalFilename", "hyperlight-tray.exe"
+      VALUE "ProductName", "Hyperlight Tray"
       VALUE "ProductVersion", "0.1.0"
     END
   END

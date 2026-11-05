@@ -169,11 +169,11 @@ pub fn make_icon(text: &str, rgb: u32, size: i32) -> HICON {
 mod tests {
     use super::*;
 
-    /// Writes sample icons as BMPs for eyeballing: `cargo test --bin hitscantray -- --ignored`
+    /// Writes sample icons as BMPs for eyeballing: `cargo test --bin hyperlight-tray -- --ignored`
     #[test]
     #[ignore]
     fn dump_samples() {
-        let dir = std::env::temp_dir().join("hitscantray-icons");
+        let dir = std::env::temp_dir().join("hyperlight-tray-icons");
         std::fs::create_dir_all(&dir).unwrap();
         for size in [16, 20, 24, 32] {
             for (text, tone) in [("25", Tone::Normal), ("8", Tone::Low), ("100", Tone::Charging), ("–", Tone::Stale)] {

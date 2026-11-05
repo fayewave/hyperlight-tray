@@ -1,4 +1,4 @@
-//! Settings, stored as a tiny key=value file in %APPDATA%\HitscanTray\settings.ini.
+//! Settings, stored as a tiny key=value file in %APPDATA%\HyperlightTray\settings.ini.
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,8 +15,20 @@ impl Default for Config {
     }
 }
 
+/// %APPDATA%\HyperlightTray. The app was called Hitscan Tray before, so an old
+/// %APPDATA%\HitscanTray folder is moved over the first time.
+pub fn data_dir() -> Option<PathBuf> {
+    let base = PathBuf::from(std::env::var_os("APPDATA")?);
+    let dir = base.join("HyperlightTray");
+    let old = base.join("HitscanTray");
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &dir);
+    }
+    Some(dir)
+}
+
 fn path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("HitscanTray").join("settings.ini"))
+    data_dir().map(|d| d.join("settings.ini"))
 }
 
 impl Config {

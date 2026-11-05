@@ -7,11 +7,17 @@ use windows_sys::Win32::System::Registry::*;
 use crate::wide;
 
 const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-const VALUE: &str = "HitscanTray";
+const VALUE: &str = "HyperlightTray";
+/// The Run value used when the app was called Hitscan Tray.
+const OLD_VALUE: &str = "HitscanTray";
 
 pub fn is_enabled() -> bool {
+    has_value(VALUE)
+}
+
+fn has_value(value: &str) -> bool {
     let key = wide(RUN_KEY);
-    let name = wide(VALUE);
+    let name = wide(value);
     let mut size = 0u32;
     unsafe {
         RegGetValueW(
@@ -47,9 +53,15 @@ pub fn set(enabled: bool) {
     }
 }
 
-/// Points the Run entry at this exe, in case it was moved since it was enabled.
+/// Points the Run entry at this exe, in case it was moved since it was enabled,
+/// and carries over an entry left by the old Hitscan Tray name.
 pub fn refresh() {
-    if is_enabled() {
+    if has_value(OLD_VALUE) {
+        let key = wide(RUN_KEY);
+        let name = wide(OLD_VALUE);
+        unsafe { RegDeleteKeyValueW(HKEY_CURRENT_USER, key.as_ptr(), name.as_ptr()) };
+        set(true);
+    } else if is_enabled() {
         set(true);
     }
 }

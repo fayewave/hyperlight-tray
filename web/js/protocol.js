@@ -1,4 +1,4 @@
-// Hitscan mouse protocol: framing, commands, the settings map and the battery
+// Hitscan Hyperlight protocol: framing, commands, the settings map and the battery
 // estimate. No browser APIs in here, so it can be tested under Node.
 // See PROTOCOL.md for where each fact comes from.
 

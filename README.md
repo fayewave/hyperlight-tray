@@ -1,4 +1,4 @@
-# Hitscan Tray
+# Hyperlight Tray
 
 A tiny, open-source tray app for **Hitscan wireless mice** (built and tested on the
 Hitscan Hyperlight). It shows the battery percentage as a number in the Windows
@@ -7,7 +7,7 @@ notification area and pops up a Windows notification when the battery runs low.
 It replaces the battery part of the official Hitscan Utility, which has no low-battery
 alert and uses far more resources:
 
-|                      | Hitscan Tray | Hitscan Utility |
+|                      | Hyperlight Tray | Hitscan Utility |
 |----------------------|-------------:|----------------:|
 | Download size        | ~190 KB, one exe | ~86 MB install |
 | Private memory       | ~2 MB        | ~30 MB          |
@@ -32,13 +32,13 @@ saved on the mouse itself, so set them once in the official utility and then clo
 
 ## Install
 
-1. Download `hitscantray.exe` from Releases, or build it (see below).
-2. Put it somewhere permanent, e.g. `%LOCALAPPDATA%\Programs\HitscanTray\`.
+1. Download `hyperlight-tray.exe` from Releases, or build it (see below).
+2. Put it somewhere permanent, e.g. `%LOCALAPPDATA%\Programs\HyperlightTray\`.
 3. Run it. Click the battery number in the tray and tick **Start with Windows**.
 
 If the number is hidden in the tray overflow (^), drag it onto the taskbar.
 
-Settings live in `%APPDATA%\HitscanTray\settings.ini`, and the last battery value in
+Settings live in `%APPDATA%\HyperlightTray\settings.ini`, and the last battery value in
 `battery.ini` next to it. To uninstall, untick Start with Windows, exit, and delete the
 exe and that folder.
 
@@ -96,7 +96,7 @@ Example battery reply at 25%, 3729 mV:
 
 The firmware's own percent (byte 6) jumps around, especially while charging, when the
 voltage rises. The official utility doesn't show it. Its `HIDUsb.dll` ("BatteryOptimize")
-computes its own figure, and Hitscan Tray does the same thing so both apps agree:
+computes its own figure, and Hyperlight Tray does the same thing so both apps agree:
 
 1. Voltage is converted to a percent with a fixed curve: 3050 mV = 0%, then
    3420, 3480, 3540, 3600, 3660, 3720, 3760, 3800, 3840, 3880, 3920, 3940, 3960,
@@ -124,17 +124,17 @@ sets no hooks, injects nothing, and never needs admin rights.
 
 ## Diagnostics
 
-`hitscan-probe.exe` is a console tool that lists every Hitscan HID collection and dumps
+`hyperlight-probe.exe` is a console tool that lists every Hitscan HID collection and dumps
 the raw replies:
 
 ```
-> hitscan-probe
+> hyperlight-probe
 Querying pid=0200:
   online  : 08 03 00 00 00 01 01 99 da 13 00 00 00 00 00 00 c2  -> mouse connected
   battery : 08 04 00 00 00 02 19 00 0e 8c 00 00 00 00 00 00 94  -> firmware 25%, not charging, 3724 mV (voltage curve: 31%)
 ```
 
-`hitscan-probe --settings` also dumps and decodes the mouse's configuration (DPI stages, polling rate, LOD,
+`hyperlight-probe --settings` also dumps and decodes the mouse's configuration (DPI stages, polling rate, LOD,
 debounce, toggles, sleep, buttons). It only reads and never changes anything. The full byte map is in
 [PROTOCOL.md](PROTOCOL.md).
 
@@ -153,11 +153,11 @@ The binaries end up in `target\release\`. If the project folder is inside Dropbo
 OneDrive, build somewhere else, since the sync client locks files mid-build:
 
 ```
-$env:CARGO_TARGET_DIR = "$env:LOCALAPPDATA\cargo-target\hitscantray"; cargo build --release
+$env:CARGO_TARGET_DIR = "$env:LOCALAPPDATA\cargo-target\hyperlight-tray"; cargo build --release
 ```
 
-`tools/make_icon.py` regenerates `res/app.ico`. `cargo test --bin hitscantray -- --ignored`
-writes sample tray icons to `%TEMP%\hitscantray-icons` for checking how they look.
+`tools/make_icon.py` regenerates `res/app.ico`. `cargo test --bin hyperlight-tray -- --ignored`
+writes sample tray icons to `%TEMP%\hyperlight-tray-icons` for checking how they look.
 
 ## Disclaimer
 
