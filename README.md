@@ -19,7 +19,8 @@ An unofficial, open-source alternative to the Hitscan Utility, for the original 
 
 ## Install
 
-1. Download `hyperlight-tray.exe` from Releases, or [build it](#build).
+1. Download `hyperlight-tray.exe` from [Releases](https://github.com/fayewave/hyperlight-tray/releases/latest), or
+   [build it](#build).
 2. Put it somewhere permanent, e.g. `%LOCALAPPDATA%\Programs\HyperlightTray\`.
 3. Run it, click the battery number in the tray, and tick **Start with Windows**.
 
