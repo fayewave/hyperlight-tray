@@ -30,6 +30,7 @@
       "Icon": "imgs/action",
       "Tooltip": "Your Hyperlight's battery. Press to refresh, hold to open the configurator.",
       "Controllers": ["Keypad"],
+      "PropertyInspectorPath": "ui/battery.html",
       "SupportedInMultiActions": false,
       "UserTitleEnabled": false,
       "States": [

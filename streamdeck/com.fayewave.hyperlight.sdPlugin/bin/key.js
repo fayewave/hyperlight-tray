@@ -9,16 +9,24 @@ export function tone(percent) {
   return percent >= 50 ? "healthy" : percent >= 20 ? "moderate" : "low";
 }
 
-/** What to show for a tray reply (see tray.js); undefined means not read yet. */
-export function view(s) {
-  const dot = Boolean(s?.update);
+/** The key's own options (its settings in Stream Deck); both are on unless turned off. */
+export function options(settings) {
+  return { remaining: settings?.showRemaining !== false, update: settings?.showUpdate !== false };
+}
+
+/**
+ * What to show for a tray reply (see tray.js); undefined means not read yet. With
+ * the time remaining hidden, the number moves to the middle of the key.
+ */
+export function view(s, opts = options()) {
+  const dot = Boolean(s?.update) && opts.update;
   const number = (p) => (p === null || p === undefined ? "–" : String(p));
   switch (s?.state) {
     case "battery":
       return {
         text: number(s.percent),
         color: COLORS[tone(s.percent)],
-        caption: s.charging ? "Charging" : (s.remaining ?? ""),
+        caption: s.charging ? "Charging" : opts.remaining ? (s.remaining ?? "") : "",
         dot,
       };
     case "asleep":

@@ -5,7 +5,7 @@
 // Without the tray running, press starts it (or opens the download page).
 import { connect } from "./socket.js";
 import { Tray, RELEASES, findTrayExe, launch, trayIsRunning } from "./tray.js";
-import { view, keySvg, dataUrl } from "./key.js";
+import { view, options, keySvg, dataUrl } from "./key.js";
 
 const POLL_MS = Number(process.env.HYPERLIGHT_POLL_MS) || 5000;
 const HOLD_MS = 500;
@@ -18,7 +18,7 @@ for (let i = 2; i + 1 < process.argv.length; i += 2) args[process.argv[i].replac
 
 const ports = process.env.HYPERLIGHT_TRAY_PORTS?.split(",").map(Number).filter(Boolean);
 const tray = new Tray(ports?.length ? ports : undefined);
-/** Visible keys: context -> { image, hold } */
+/** Visible keys: context -> { image, hold, opts } */
 const keys = new Map();
 let reading; // last status, undefined until the first poll
 let offline = { running: false, exe: null, at: 0 };
@@ -39,8 +39,8 @@ async function status() {
 }
 
 function draw() {
-  const image = dataUrl(keySvg(view(reading)));
   for (const [context, key] of keys) {
+    const image = dataUrl(keySvg(view(reading, key.opts)));
     if (key.image !== image) {
       key.image = image;
       send("setImage", { context, payload: { image, target: 0 } });
@@ -94,8 +94,14 @@ function onMessage(text) {
   const key = keys.get(msg.context);
   switch (msg.event) {
     case "willAppear":
-      keys.set(msg.context, { image: null, hold: null });
+      keys.set(msg.context, { image: null, hold: null, opts: options(msg.payload?.settings) });
       startPolling();
+      if (reading !== undefined) draw();
+      break;
+    case "didReceiveSettings":
+      // Changed in the key's settings panel (ui/battery.html).
+      if (!key) break;
+      key.opts = options(msg.payload?.settings);
       if (reading !== undefined) draw();
       break;
     case "willDisappear":

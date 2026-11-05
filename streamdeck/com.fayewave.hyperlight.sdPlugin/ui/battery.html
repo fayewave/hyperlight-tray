@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mouse Battery</title>
+<style>
+  /* Matches Stream Deck's own settings panels. */
+  body {
+    margin: 0; padding: 8px 0; background: #2d2d2d; color: #d8d8d8;
+    font: 9pt "Segoe UI", system-ui, sans-serif; user-select: none;
+  }
+  .item { display: flex; align-items: flex-start; padding: 4px 16px 4px 0; min-height: 24px; }
+  .label { flex: 0 0 94px; padding: 4px 12px 0 0; text-align: right; color: #d8d8d8; }
+  .options { display: flex; flex-direction: column; gap: 6px; padding-top: 3px; }
+  label.check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  input[type="checkbox"] {
+    appearance: none; margin: 0; width: 14px; height: 14px; flex: none; border-radius: 3px;
+    background: #3d3d3d; border: 1px solid #575757; display: grid; place-content: center; cursor: pointer;
+  }
+  input[type="checkbox"]:checked { background: #0a84ff; border-color: #0a84ff; }
+  input[type="checkbox"]:checked::after {
+    content: ""; width: 7px; height: 4px; margin-top: -2px;
+    border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg);
+  }
+  input[type="checkbox"]:focus-visible { outline: 1px solid #8ab4f8; outline-offset: 1px; }
+  .hint { color: #969696; line-height: 1.4; padding: 6px 16px 0 106px; }
+</style>
+</head>
+<body>
+  <div class="item">
+    <div class="label">Show</div>
+    <div class="options">
+      <label class="check"><input type="checkbox" id="showRemaining" checked> Time remaining</label>
+      <label class="check"><input type="checkbox" id="showUpdate" checked> Update dot</label>
+    </div>
+  </div>
+  <p class="hint">Press the key to re-read the battery. Hold it to open the configurator.</p>
+
+<script>
+  // Stream Deck calls this when the panel opens.
+  // eslint-disable-next-line no-unused-vars
+  function connectElgatoStreamDeckSocket(port, uuid, registerEvent, _info, actionInfo) {
+    const settings = JSON.parse(actionInfo).payload?.settings ?? {};
+    const boxes = ["showRemaining", "showUpdate"].map((id) => document.getElementById(id));
+    for (const box of boxes) box.checked = settings[box.id] !== false;
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    ws.onopen = () => ws.send(JSON.stringify({ event: registerEvent, uuid }));
+    for (const box of boxes) {
+      box.addEventListener("change", () => {
+        settings[box.id] = box.checked;
+        ws.send(JSON.stringify({ event: "setSettings", context: uuid, payload: settings }));
+      });
+    }
+  }
+</script>
+</body>
+</html>

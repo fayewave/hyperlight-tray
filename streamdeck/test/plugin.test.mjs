@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { view, keySvg, COLORS, dataUrl } from "../com.fayewave.hyperlight.sdPlugin/bin/key.js";
+import { view, options, keySvg, COLORS } from "../com.fayewave.hyperlight.sdPlugin/bin/key.js";
 import { encodeFrame, FrameReader, OP } from "../com.fayewave.hyperlight.sdPlugin/bin/socket.js";
 
 const PLUGIN = fileURLToPath(new URL("../com.fayewave.hyperlight.sdPlugin/bin/plugin.js", import.meta.url));
@@ -25,6 +25,17 @@ test("key shows the number in the tray's colours", () => {
   assert.doesNotMatch(svg({ state: "battery", percent: 85 }), /circle/);
   assert.match(svg({ state: "battery", percent: 85, update: "v0.2.0" }), /circle/);
   assert.match(svg({ state: "battery", percent: 85, remaining: "<b>" }), />&lt;b&gt;</);
+});
+
+test("key options hide the time remaining (number centred) and the update dot", () => {
+  const s = { state: "battery", percent: 85, charging: false, remaining: "~12h", update: "v0.2.0" };
+  const all = keySvg(view(s, options({})));
+  assert.match(all, /y="90"[^>]*>85<.*>~12h<.*circle/);
+  const bare = keySvg(view(s, options({ showRemaining: false, showUpdate: false })));
+  assert.match(bare, /y="106"[^>]*>85</);
+  assert.doesNotMatch(bare, /~12h|circle/);
+  // Charging is still shown: it isn't an estimate.
+  assert.match(keySvg(view({ ...s, charging: true }, options({ showRemaining: false }))), />Charging</);
 });
 
 test("websocket frames round-trip at every length encoding", () => {
@@ -124,6 +135,12 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     tray.reading = { ...tray.reading, percent: 15, update: "v0.2.0" };
     const second = await until(() => images()[1], "updated image");
     assert.match(imageOf(second), new RegExp(`fill="${COLORS.low}">15<.*circle`));
+
+    // Turning options off in the key's settings redraws it without them.
+    sd.send({ event: "didReceiveSettings", context: "key1", payload: { settings: { showRemaining: false, showUpdate: false } } });
+    const third = await until(() => images()[2], "image without options");
+    assert.match(imageOf(third), /y="106"[^>]*>15</);
+    assert.doesNotMatch(imageOf(third), /~16h|circle/);
 
     // A quick press asks the tray to read the battery now.
     sd.send({ event: "keyDown", context: "key1" });

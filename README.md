@@ -43,7 +43,7 @@ Download `com.fayewave.hyperlight.streamDeckPlugin` from
 **Hyperlight > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
 
 The key shows the same number and colours as the tray icon, with the time remaining or "Charging" underneath, and
-the blue dot when there's an update. Press it to re-read the battery, or hold it to open the configurator. If the
+the blue dot when there's an update (either can be hidden in the key's settings). Press it to re-read the battery, or hold it to open the configurator. If the
 tray isn't running, pressing the key starts it.
 
 ## Privacy and safety
