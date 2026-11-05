@@ -9,7 +9,7 @@ An unofficial, open-source replacement for the Hitscan Utility, for the **Hitsca
 </p>
 
 - **Tray app.** The battery % sits in the taskbar, coloured green, orange or red as it runs down. It also gives
-  low-battery and fully-charged alerts, and estimates the time remaining. One ~280 KB exe using about 2 MB of
+  low-battery and fully-charged alerts, and estimates the time remaining. One ~320 KB exe using 2–5 MB of
   memory, where the official utility takes about 30 MB.
 - **Configurator.** A browser page for DPI, polling rate, lift-off distance, sensor options, sleep, debounce and
   buttons. Open it from the tray.

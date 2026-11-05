@@ -39,6 +39,18 @@ features = [
     "Win32_UI_Input_KeyboardAndMouse",
 ]
 
+# Direct2D/DirectWrite (COM) for the tray menu's text rendering.
+[dependencies.windows]
+version = "0.62"
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Direct2D",
+    "Win32_Graphics_Direct2D_Common",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dxgi_Common",
+]
+
 [build-dependencies]
 embed-resource = "3"
 

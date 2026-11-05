@@ -23,6 +23,7 @@ use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
+use crate::text::{self, Align, Face};
 use crate::wide;
 
 pub const WM_MENU_COMMAND: u32 = WM_APP + 5;
@@ -116,30 +117,16 @@ const LIGHT: Palette = Palette {
     shadow: 0.20,
 };
 
-/// 0xRRGGBB to a GDI COLORREF (0x00BBGGRR).
-fn cref(rgb: u32) -> u32 {
-    ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF)
-}
+/// A text style: typeface, weight and size at 96 DPI. Drawn with DirectWrite (text.rs).
+#[derive(Clone, Copy)]
+struct Style(Face, i32, f32);
 
-struct Fonts {
-    text: HFONT,
-    bold: HFONT,
-    small: HFONT,
-    icon: HFONT,
-    icon_small: HFONT,
-    /// The battery glyph is wide and flat, so the status row uses a bigger size.
-    icon_large: HFONT,
-}
-
-impl Drop for Fonts {
-    fn drop(&mut self) {
-        unsafe {
-            for f in [self.text, self.bold, self.small, self.icon, self.icon_small, self.icon_large] {
-                DeleteObject(f);
-            }
-        }
-    }
-}
+const TEXT: Style = Style(Face::Text, 400, 13.0);
+const SMALL: Style = Style(Face::Text, 400, 11.5);
+const ICON: Style = Style(Face::Icons, 400, 14.0);
+const ICON_SMALL: Style = Style(Face::Icons, 400, 11.0);
+/// The battery glyph is wide and flat, so the status row uses a bigger size.
+const ICON_LARGE: Style = Style(Face::Icons, 400, 19.0);
 
 /// A 32-bit top-down DIB selected into its own memory DC.
 struct Surface {
@@ -210,7 +197,6 @@ struct Menu {
     y: i32,
     phase: Phase,
     palette: &'static Palette,
-    fonts: Fonts,
     /// The finished, alpha-composited image (panel plus shadow).
     image: Option<Surface>,
 }
@@ -308,7 +294,6 @@ pub fn show(owner: HWND, items: Vec<Item>) {
             y: 0,
             phase: Phase::Opening(Instant::now()),
             palette,
-            fonts: make_fonts(scale),
             image: None,
         };
         menu.margin = menu.px(16.0);
@@ -354,80 +339,25 @@ pub fn show(owner: HWND, items: Vec<Item>) {
     }
 }
 
-unsafe fn make_fonts(scale: f32) -> Fonts {
-    // Text uses ClearType; icons use plain anti-aliasing, which keeps thin icon
-    // strokes smooth instead of jagged.
-    let font = |px: f32, weight: i32, face: &str| {
-        let quality = if face.starts_with("Segoe UI") { CLEARTYPE_QUALITY } else { ANTIALIASED_QUALITY };
-        let f = wide(face);
-        CreateFontW(
-            -(px * scale).round() as i32,
-            0,
-            0,
-            0,
-            weight,
-            0,
-            0,
-            0,
-            DEFAULT_CHARSET as _,
-            OUT_TT_PRECIS as _,
-            CLIP_DEFAULT_PRECIS as _,
-            quality as _,
-            (DEFAULT_PITCH | FF_DONTCARE) as _,
-            f.as_ptr(),
-        )
-    };
-    let icon_face = if font_exists("Segoe Fluent Icons") { "Segoe Fluent Icons" } else { "Segoe MDL2 Assets" };
-    Fonts {
-        text: font(13.0, FW_NORMAL as i32, "Segoe UI"),
-        bold: font(13.0, FW_SEMIBOLD as i32, "Segoe UI"),
-        small: font(11.5, FW_NORMAL as i32, "Segoe UI"),
-        icon: font(14.0, FW_NORMAL as i32, icon_face),
-        icon_small: font(11.0, FW_NORMAL as i32, icon_face),
-        icon_large: font(19.0, FW_NORMAL as i32, icon_face),
-    }
-}
-
-/// Whether GDI really gives us this face (it silently substitutes otherwise).
-unsafe fn font_exists(face: &str) -> bool {
-    let f = wide(face);
-    let font = CreateFontW(-16, 0, 0, 0, 400, 0, 0, 0, DEFAULT_CHARSET as _, 0, 0, 0, 0, f.as_ptr());
-    let dc = GetDC(ptr::null_mut());
-    let old = SelectObject(dc, font);
-    let mut buf = [0u16; 64];
-    let n = GetTextFaceW(dc, buf.len() as i32, buf.as_mut_ptr());
-    SelectObject(dc, old);
-    ReleaseDC(ptr::null_mut(), dc);
-    DeleteObject(font);
-    String::from_utf16_lossy(&buf[..n.max(1) as usize - 1]).eq_ignore_ascii_case(face)
-}
-
-unsafe fn text_width(dc: HDC, font: HFONT, s: &str) -> i32 {
-    let w: Vec<u16> = s.encode_utf16().collect();
-    let old = SelectObject(dc, font);
-    let mut size: SIZE = mem::zeroed();
-    GetTextExtentPoint32W(dc, w.as_ptr(), w.len() as i32, &mut size);
-    SelectObject(dc, old);
-    size.cx
+fn text_width(m: &Menu, s: &str, st: Style) -> i32 {
+    text::measure(s, st.0, st.1, st.2 * m.scale).ceil() as i32
 }
 
 unsafe fn measure_width(m: &Menu) -> i32 {
-    let dc = GetDC(ptr::null_mut());
     let mut widest = 0;
     for it in &m.items {
         let w = match it {
-            Item::Title { text, .. } => text_width(dc, m.fonts.text, text),
+            Item::Title { text, .. } => text_width(m, text, TEXT),
             Item::Status { text, detail, button, .. } => {
                 let extra = if button.is_some() { m.px(30.0) } else { 0 };
-                text_width(dc, m.fonts.text, text).max(text_width(dc, m.fonts.small, detail)) + extra
+                text_width(m, text, TEXT).max(text_width(m, detail, SMALL)) + extra
             }
-            Item::Action { text, .. } => text_width(dc, m.fonts.text, text),
-            Item::Toggle { text, .. } => text_width(dc, m.fonts.text, text) + m.px(34.0),
+            Item::Action { text, .. } => text_width(m, text, TEXT),
+            Item::Toggle { text, .. } => text_width(m, text, TEXT) + m.px(34.0),
             Item::Separator => 0,
         };
         widest = widest.max(w);
     }
-    ReleaseDC(ptr::null_mut(), dc);
     // padding + icon column + text + right margin
     (m.pad() + m.px(38.0) + widest + m.px(18.0) + m.pad()).max(m.px(212.0))
 }
@@ -506,18 +436,6 @@ fn stroke(s: &mut Surface, (ax, ay): (f32, f32), (bx, by): (f32, f32), width: f3
 // ---------------------------------------------------------------------------
 // drawing
 
-unsafe fn text(dc: HDC, font: HFONT, rgb: u32, s: &str, mut r: RECT, flags: u32) {
-    let mut w: Vec<u16> = s.encode_utf16().collect();
-    SelectObject(dc, font);
-    SetTextColor(dc, cref(rgb));
-    DrawTextW(dc, w.as_mut_ptr(), w.len() as i32, &mut r, flags | DT_SINGLELINE | DT_NOPREFIX);
-}
-
-unsafe fn glyph(dc: HDC, font: HFONT, rgb: u32, cp: u16, r: RECT) {
-    let s = String::from_utf16_lossy(&[cp]);
-    text(dc, font, rgb, &s, r, DT_CENTER | DT_VCENTER);
-}
-
 /// Draws the panel's contents (opaque) and composites the final image.
 unsafe fn render(m: &mut Menu) {
     let (w, h, margin) = (m.width, m.height, m.margin);
@@ -534,7 +452,7 @@ unsafe fn render(m: &mut Menu) {
     let rows = m.rows();
     let radius = m.px(5.0) as f32;
 
-    // Shapes first (they write pixels directly), then GDI text on top.
+    // Shapes first (they write pixels directly), then text on top.
     for (i, (it, &(top, bottom))) in m.items.iter().zip(rows.iter()).enumerate() {
         if m.hover == Some(i) {
             if let Item::Status { .. } = it {
@@ -572,45 +490,47 @@ unsafe fn render(m: &mut Menu) {
     }
     GdiFlush();
 
-    let dc = panel.dc;
-    SetBkMode(dc, TRANSPARENT as _);
-    for (it, &(top, bottom)) in m.items.iter().zip(rows.iter()) {
-        let icon_box = RECT { left: icon_x, top, right: icon_x + icon_w, bottom };
-        let mut text_box = RECT { left: text_x, top, right: right - m.px(10.0), bottom };
-        match it {
-            Item::Separator => {}
-            Item::Title { icon, text: t } => {
-                glyph(dc, m.fonts.icon_small, p.muted, *icon, icon_box);
-                text(dc, m.fonts.text, p.muted, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
-            }
-            Item::Status { icon, text: t, detail, button } => {
-                let wide_box = RECT { left: icon_box.left - m.px(2.0), right: icon_box.right + m.px(2.0), ..icon_box };
-                glyph(dc, m.fonts.icon_large, p.text, *icon, wide_box);
-                if let Some((_, b_icon)) = button {
-                    let (l, bt, r, bb) = m.button_rect((top, bottom));
-                    glyph(dc, m.fonts.icon, p.text, *b_icon, RECT { left: l, top: bt, right: r, bottom: bb });
-                    text_box.right = l - m.px(6.0);
+    // Text and icon glyphs, drawn with DirectWrite into the panel buffer.
+    let scale = m.scale;
+    text::paint(panel.dc, w, h, |pt| {
+        let mut draw = |s: &str, st: Style, rgb: u32, r: RECT, align: Align| {
+            pt.text(s, st.0, st.1, st.2 * scale, rgb, (r.left, r.top, r.right, r.bottom), align);
+        };
+        let g = |cp: u16| String::from_utf16_lossy(&[cp]);
+        for (it, &(top, bottom)) in m.items.iter().zip(rows.iter()) {
+            let icon_box = RECT { left: icon_x, top, right: icon_x + icon_w, bottom };
+            let mut text_box = RECT { left: text_x, top, right: right - m.px(10.0), bottom };
+            match it {
+                Item::Separator => {}
+                Item::Title { icon, text: t } => {
+                    draw(&g(*icon), ICON_SMALL, p.muted, icon_box, Align::Center);
+                    draw(t, TEXT, p.muted, text_box, Align::Leading);
                 }
-                if detail.is_empty() {
-                    text(dc, m.fonts.text, p.text, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
-                } else {
-                    let mid = top + (bottom - top) / 2;
-                    let upper = RECT { top: top + m.px(3.0), bottom: mid + m.px(1.0), ..text_box };
-                    let lower = RECT { top: mid, bottom: bottom - m.px(4.0), ..text_box };
-                    text(dc, m.fonts.text, p.text, t, upper, DT_VCENTER | DT_END_ELLIPSIS);
-                    text(dc, m.fonts.small, p.muted, detail, lower, DT_VCENTER | DT_END_ELLIPSIS);
+                Item::Status { icon, text: t, detail, button } => {
+                    let wide_box = RECT { left: icon_box.left - m.px(2.0), right: icon_box.right + m.px(2.0), ..icon_box };
+                    draw(&g(*icon), ICON_LARGE, p.text, wide_box, Align::Center);
+                    if let Some((_, b_icon)) = button {
+                        let (l, bt, r, bb) = m.button_rect((top, bottom));
+                        draw(&g(*b_icon), ICON, p.text, RECT { left: l, top: bt, right: r, bottom: bb }, Align::Center);
+                        text_box.right = l - m.px(6.0);
+                    }
+                    if detail.is_empty() {
+                        draw(t, TEXT, p.text, text_box, Align::Leading);
+                    } else {
+                        let mid = top + (bottom - top) / 2;
+                        let upper = RECT { top: top + m.px(3.0), bottom: mid + m.px(1.0), ..text_box };
+                        let lower = RECT { top: mid, bottom: bottom - m.px(4.0), ..text_box };
+                        draw(t, TEXT, p.text, upper, Align::Leading);
+                        draw(detail, SMALL, p.muted, lower, Align::Leading);
+                    }
                 }
-            }
-            Item::Action { icon, text: t, .. } => {
-                glyph(dc, m.fonts.icon, p.text, *icon, icon_box);
-                text(dc, m.fonts.text, p.text, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
-            }
-            Item::Toggle { icon, text: t, .. } => {
-                glyph(dc, m.fonts.icon, p.text, *icon, icon_box);
-                text(dc, m.fonts.text, p.text, t, text_box, DT_VCENTER | DT_END_ELLIPSIS);
+                Item::Action { icon, text: t, .. } | Item::Toggle { icon, text: t, .. } => {
+                    draw(&g(*icon), ICON, p.text, icon_box, Align::Center);
+                    draw(t, TEXT, p.text, text_box, Align::Leading);
+                }
             }
         }
-    }
+    });
     GdiFlush();
     // Border last, over everything, along the panel's edge.
     let edge = (1.0 * m.scale).max(1.0);
@@ -855,6 +775,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         }
         WM_DESTROY => {
             MENU.with(|m| m.borrow_mut().take());
+            text::release();
             LAST_CLOSED.with(|c| *c.borrow_mut() = Some(Instant::now()));
             0
         }
@@ -914,7 +835,6 @@ mod tests {
                 y: 0,
                 phase: Phase::Open,
                 palette,
-                fonts: unsafe { make_fonts(scale) },
                 image: None,
             };
             m.margin = m.px(16.0);

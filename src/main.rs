@@ -7,6 +7,7 @@ mod config;
 mod icon;
 mod menu;
 mod saved;
+mod text;
 mod web;
 
 use std::cell::RefCell;
