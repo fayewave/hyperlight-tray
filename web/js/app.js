@@ -557,7 +557,7 @@ function performancePage(s, off) {
     segments(sleepOpts, sleepVal, pickSleep, off, 5));
 
   return h("div", { class: "grid" },
-    state.tray && trayCard(),
+    state.tray && trayCards(),
     sensitivityCard(s, off),
     polling, lod, sensor, additional);
 }
@@ -734,8 +734,8 @@ function devicePage() {
 // ---------------------------------------------------------------------------
 // tray
 
-/** The tray app's own settings, shown at the top of Performance when served by Hyperlight Tray. */
-function trayCard() {
+/** The tray app's own settings: two cards at the top of Performance when served by Hyperlight Tray. */
+function trayCards() {
   const t = state.tray;
   const test = async () => {
     try {
@@ -745,24 +745,20 @@ function trayCard() {
       toast("Couldn't reach Hyperlight Tray", "error");
     }
   };
-  const c = card("Hyperlight Tray", h("span", { class: "badge" }, `v${t.version}`),
-    h("div", { class: "tray-grid" },
-      h("div", {},
-        h("div", { class: "row-name", style: "margin-bottom:12px" }, "Low battery alert", info("lowAlert")),
-        segments([0, 5, 10, 15, 20, 25, 30].map((v) => ({ label: v ? String(v) : "Off", unit: v ? "%" : " ", value: v })),
-          t.threshold, (v) => saveTray("Low battery alert", { threshold: v }), false, 7)),
-      h("div", {},
-        h("div", { class: "row" },
-          h("span", { class: "row-name" }, "Fully charged alert", info("fullAlert")),
-          toggle("Fully charged alert", t.notifyFull, (on) => saveTray("Fully charged alert", { notifyFull: on }))),
-        h("div", { class: "row" },
-          h("span", { class: "row-name" }, "Start with Windows", info("autostart")),
-          toggle("Start with Windows", t.autostart, (on) => saveTray("Start with Windows", { autostart: on }))),
-        h("div", { class: "row" },
-          h("span", { class: "row-name" }, "Test notification"),
-          h("button", { class: "btn btn-sm", onclick: test }, "Send")))));
-  c.classList.add("span-2");
-  return c;
+  const alerts = card(["Battery alerts", info("lowAlert")], null,
+    segments([0, 5, 10, 15, 20, 25, 30].map((v) => ({ label: v ? String(v) : "Off", unit: v ? "%" : " ", value: v })),
+      t.threshold, (v) => saveTray("Low battery alert", { threshold: v }), false, 7),
+    h("div", { class: "row", style: "margin-top:10px" },
+      h("span", { class: "row-name" }, "Fully charged alert", info("fullAlert")),
+      toggle("Fully charged alert", t.notifyFull, (on) => saveTray("Fully charged alert", { notifyFull: on }))));
+  const app = card("Hyperlight Tray", h("span", { class: "badge" }, `v${t.version}`),
+    h("div", { class: "row" },
+      h("span", { class: "row-name" }, "Start with Windows", info("autostart")),
+      toggle("Start with Windows", t.autostart, (on) => saveTray("Start with Windows", { autostart: on }))),
+    h("div", { class: "row" },
+      h("span", { class: "row-name" }, "Test notification"),
+      h("button", { class: "btn btn-sm", onclick: test }, "Send")));
+  return [alerts, app];
 }
 
 // ---------------------------------------------------------------------------

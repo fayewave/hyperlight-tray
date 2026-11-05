@@ -37,8 +37,8 @@ To uninstall: untick **Start with Windows**, exit, then delete the exe and `%APP
 
 Change DPI stages and colours, polling rate, lift-off distance, motion sync, ripple control, angle snapping,
 performance mode, long distance mode, auto sleep, debounce and button assignments, and back up or restore your
-settings. When opened from the tray, a **Hyperlight Tray** card at the top of the Performance page holds the tray
-app's own settings: battery alerts, Start with Windows and a test notification.
+settings. When opened from the tray, two cards at the top of the Performance page hold the tray app's own
+settings: **Battery alerts**, and **Hyperlight Tray** (Start with Windows and a test notification).
 
 - Needs Chrome, Edge or Opera on a computer (it uses WebHID).
 - Each change is saved to the mouse straight away and checked by reading it back. The mouse has to be awake.

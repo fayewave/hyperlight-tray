@@ -219,10 +219,6 @@ select.wide { width: min(100%, 652px); padding-block: 11px; }
 .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn-sm { padding: 6px 14px; font-weight: 500; }
 
-/* Hyperlight Tray card: alert level on the left, switches on the right */
-.tray-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 8px 44px; align-items: start; }
-.tray-grid .row { min-height: 44px; padding: 4px 0; }
-@media (max-width: 900px) { .tray-grid { grid-template-columns: minmax(0, 1fr); } }
 
 input[type="range"] {
   -webkit-appearance: none; appearance: none; width: 100%; height: 3px; margin: 14px 0;
