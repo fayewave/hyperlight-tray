@@ -30,9 +30,9 @@
   <div class="item">
     <div class="label">Show</div>
     <div class="options">
-      <label class="check"><input type="checkbox" id="showCharging" checked> Charging text</label>
-      <label class="check"><input type="checkbox" id="showAsleep" checked> Asleep text</label>
-      <label class="check"><input type="checkbox" id="showRemaining" checked> Time remaining text</label>
+      <label class="check"><input type="checkbox" id="showCharging"> Charging text</label>
+      <label class="check"><input type="checkbox" id="showAsleep"> Asleep text</label>
+      <label class="check"><input type="checkbox" id="showRemaining"> Time remaining text</label>
       <label class="check"><input type="checkbox" id="showUpdate" checked> Update dot</label>
     </div>
   </div>
@@ -44,7 +44,8 @@
   function connectElgatoStreamDeckSocket(port, uuid, registerEvent, _info, actionInfo) {
     const settings = JSON.parse(actionInfo).payload?.settings ?? {};
     const boxes = ["showRemaining", "showCharging", "showAsleep", "showUpdate"].map((id) => document.getElementById(id));
-    for (const box of boxes) box.checked = settings[box.id] !== false;
+    // Unsaved options keep the default ticked state from the markup above.
+    for (const box of boxes) if (typeof settings[box.id] === "boolean") box.checked = settings[box.id];
 
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     ws.onopen = () => ws.send(JSON.stringify({ event: registerEvent, uuid }));

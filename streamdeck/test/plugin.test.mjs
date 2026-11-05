@@ -12,7 +12,8 @@ import { encodeFrame, FrameReader, OP } from "../com.fayewave.hyperlight.sdPlugi
 const PLUGIN = fileURLToPath(new URL("../com.fayewave.hyperlight.sdPlugin/bin/plugin.js", import.meta.url));
 
 test("key shows the number in the tray's colours", () => {
-  const svg = (s) => keySvg(view(s));
+  const all = options({ showRemaining: true, showCharging: true, showAsleep: true });
+  const svg = (s) => keySvg(view(s, all));
   assert.match(svg({ state: "battery", percent: 85, charging: false, remaining: "~12h" }), new RegExp(`fill="${COLORS.healthy}">85<.*>~12h<`));
   assert.match(svg({ state: "battery", percent: 35, charging: true }), new RegExp(`fill="${COLORS.moderate}">35<.*>Charging<`));
   assert.match(svg({ state: "battery", percent: 8, charging: false }), new RegExp(`fill="${COLORS.low}">8<`));
@@ -27,22 +28,27 @@ test("key shows the number in the tray's colours", () => {
   assert.match(svg({ state: "battery", percent: 85, remaining: "<b>" }), />&lt;b&gt;</);
 });
 
-test("key options hide the time remaining (number centred) and the update dot", () => {
+test("key options: text lines are opt-in (number centred without them), the dot opt-out", () => {
   const s = { state: "battery", percent: 85, charging: false, remaining: "~12h", update: "v0.2.0" };
-  const all = keySvg(view(s, options({})));
+  // Defaults: just the number, centred, plus the update dot.
+  const plain = keySvg(view(s, options({})));
+  assert.match(plain, /y="106"[^>]*>85<.*circle/);
+  assert.doesNotMatch(plain, /~12h/);
+  assert.match(keySvg(view(s)), /y="106"[^>]*>85</);
+  const all = keySvg(view(s, options({ showRemaining: true })));
   assert.match(all, /y="90"[^>]*>85<.*>~12h<.*circle/);
   const bare = keySvg(view(s, options({ showRemaining: false, showUpdate: false })));
   assert.match(bare, /y="106"[^>]*>85</);
   assert.doesNotMatch(bare, /~12h|circle/);
   // Charging and Asleep have their own options.
   const charging = { ...s, charging: true, remaining: null };
-  assert.match(keySvg(view(charging, options({ showRemaining: false }))), />Charging</);
-  const noCharging = keySvg(view(charging, options({ showCharging: false })));
+  assert.match(keySvg(view(charging, options({ showCharging: true }))), />Charging</);
+  const noCharging = keySvg(view(charging, options({ showRemaining: true })));
   assert.match(noCharging, /y="106"[^>]*>85</);
   assert.doesNotMatch(noCharging, /Charging/);
   const asleep = { state: "asleep", percent: 42 };
-  assert.match(keySvg(view(asleep, options({}))), />Asleep</);
-  const noAsleep = keySvg(view(asleep, options({ showAsleep: false })));
+  assert.match(keySvg(view(asleep, options({ showAsleep: true }))), />Asleep</);
+  const noAsleep = keySvg(view(asleep, options({})));
   assert.match(noAsleep, new RegExp(`y="106"[^>]*fill="${COLORS.stale}">42<`));
   assert.doesNotMatch(noAsleep, /Asleep/);
 });
@@ -132,7 +138,7 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
   try {
     await until(() => sd.got.find((m) => m.event === "registerPlugin" && m.uuid === "PLUGIN-UUID"), "registration");
 
-    sd.send({ event: "willAppear", action: "com.fayewave.hyperlight.battery", context: "key1", payload: { settings: {} } });
+    sd.send({ event: "willAppear", action: "com.fayewave.hyperlight.battery", context: "key1", payload: { settings: { showRemaining: true } } });
     const first = await until(() => sd.got.find((m) => m.event === "setImage" && m.context === "key1"), "first image");
     assert.ok(first.payload.image.startsWith("data:image/svg+xml,"));
     assert.match(imageOf(first), new RegExp(`fill="${COLORS.healthy}">60<.*>~16h<`));

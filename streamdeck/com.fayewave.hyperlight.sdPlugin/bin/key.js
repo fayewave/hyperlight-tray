@@ -9,14 +9,16 @@ export function tone(percent) {
   return percent >= 50 ? "healthy" : percent >= 20 ? "moderate" : "low";
 }
 
-/** The key's own options (its settings in Stream Deck); each is on unless turned off. */
+/**
+ * The key's own options (its settings in Stream Deck). The text lines are off until
+ * turned on, so by default the key is just the number; the update dot is on.
+ */
 export function options(settings) {
-  const on = (k) => settings?.[k] !== false;
   return {
-    remaining: on("showRemaining"),
-    charging: on("showCharging"),
-    asleep: on("showAsleep"),
-    update: on("showUpdate"),
+    remaining: settings?.showRemaining === true,
+    charging: settings?.showCharging === true,
+    asleep: settings?.showAsleep === true,
+    update: settings?.showUpdate !== false,
   };
 }
 
