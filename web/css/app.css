@@ -27,6 +27,9 @@
   --danger: #ff6b5e;
   --danger-soft: rgb(255 107 94 / 12%);
   --orange: #ff9f4a;
+  --level-high: #6ccb5f;
+  --level-mid: #ffa94d;
+  --level-low: #ff6b61;
   --orange-soft: rgb(255 140 40 / 13%);
   --orange-line: rgb(255 150 60 / 45%);
   color-scheme: dark;
@@ -58,6 +61,9 @@
   --danger: #c42b1c;
   --danger-soft: #fde7e4;
   --orange: #a84a00;
+  --level-high: #0e700e;
+  --level-mid: #a85200;
+  --level-low: #c42b1c;
   --orange-soft: #fff0e1;
   --orange-line: #f2b47a;
   color-scheme: light;

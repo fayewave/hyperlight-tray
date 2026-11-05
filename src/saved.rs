@@ -68,6 +68,21 @@ pub fn load(id: [u8; 3]) -> Option<Saved> {
     }
 }
 
+/// Discharge history for the time-remaining estimate (discharge.txt).
+pub fn load_discharge() -> hyperlight::remaining::Discharge {
+    crate::config::data_dir()
+        .and_then(|d| std::fs::read_to_string(d.join("discharge.txt")).ok())
+        .map(|t| hyperlight::remaining::Discharge::from_text(&t))
+        .unwrap_or_default()
+}
+
+pub fn store_discharge(d: &hyperlight::remaining::Discharge) {
+    if let Some(dir) = crate::config::data_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::write(dir.join("discharge.txt"), d.to_text());
+    }
+}
+
 pub fn store(id: [u8; 3], s: Saved) {
     let Some(path) = file() else { return };
     let key = id_hex(id);

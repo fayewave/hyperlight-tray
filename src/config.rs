@@ -7,11 +7,13 @@ pub struct Config {
     pub threshold: u8,
     /// Notify once the battery reaches 100% while charging.
     pub notify_full: bool,
+    /// Show the time-remaining estimate in the tooltip and menu.
+    pub show_estimate: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { threshold: 10, notify_full: true }
+        Config { threshold: 10, notify_full: true, show_estimate: true }
     }
 }
 
@@ -52,6 +54,7 @@ impl Config {
                     }
                 }
                 "notify_full" => c.notify_full = matches!(v, "1" | "true" | "yes"),
+                "estimate" => c.show_estimate = matches!(v, "1" | "true" | "yes"),
                 _ => {}
             }
         }
@@ -66,8 +69,8 @@ impl Config {
         let _ = std::fs::write(
             p,
             format!(
-                "threshold={}\nnotify_full={}\n",
-                self.threshold, self.notify_full as u8
+                "threshold={}\nnotify_full={}\nestimate={}\n",
+                self.threshold, self.notify_full as u8, self.show_estimate as u8
             ),
         );
     }
@@ -81,6 +84,6 @@ mod tests {
     fn parse_ignores_unknown_keys() {
         // interval_min was a setting in an early build; old files still load.
         let c = Config::parse("threshold=20\nnotify_full=0\ninterval_min=5\njunk\n");
-        assert_eq!(c, Config { threshold: 20, notify_full: false });
+        assert_eq!(c, Config { threshold: 20, notify_full: false, show_estimate: true });
     }
 }

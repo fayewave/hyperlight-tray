@@ -70,6 +70,10 @@ const TIPS = {
     title: "Fully charged alert",
     body: "Shows a Windows notification when the battery reaches 100% while charging.",
   },
+  estimate: {
+    title: "Time remaining",
+    body: "Adds an estimate of the hours left to the tray tooltip and menu, for example \u201cMouse: 85% (~12h)\u201d. It learns from how fast the battery has been dropping since you last charged, so it needs a few percent of use before it appears.",
+  },
   autostart: {
     title: "Start with Windows",
     body: "Starts Hyperlight Tray when you sign in, so the battery number and alerts are always there. Also in the tray icon's menu.",
@@ -404,7 +408,8 @@ function renderNav() {
 
 function batteryIcon(pct, charging) {
   const w = Math.max(1, Math.round((pct / 100) * 9));
-  const fill = charging ? "var(--ok)" : pct <= 15 ? "var(--danger)" : "currentColor";
+  // Same scheme as the tray icon: green 50%+, orange 20-49%, red under 20%.
+  const fill = pct >= 50 ? "var(--level-high)" : pct >= 20 ? "var(--level-mid)" : "var(--level-low)";
   return icon(`<rect x="1" y="4.5" width="12" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>` +
     `<rect x="13.5" y="6.5" width="1.5" height="3" rx=".5" fill="currentColor"/>` +
     `<rect x="2.5" y="6" width="${w}" height="4" rx=".5" fill="${fill}"/>`, "batt");
@@ -752,6 +757,9 @@ function trayCards() {
       h("span", { class: "row-name" }, "Fully charged alert", info("fullAlert")),
       toggle("Fully charged alert", t.notifyFull, (on) => saveTray("Fully charged alert", { notifyFull: on }))));
   const app = card("Hyperlight Tray", h("span", { class: "badge" }, `v${t.version}`),
+    h("div", { class: "row" },
+      h("span", { class: "row-name" }, "Time remaining", info("estimate")),
+      toggle("Time remaining", t.estimate, (on) => saveTray("Time remaining", { estimate: on }))),
     h("div", { class: "row" },
       h("span", { class: "row-name" }, "Start with Windows", info("autostart")),
       toggle("Start with Windows", t.autostart, (on) => saveTray("Start with Windows", { autostart: on }))),

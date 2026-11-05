@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use hyperlight::estimate::{Estimator, Saved};
+use hyperlight::remaining::{self, Discharge};
 use hyperlight::hid::{self, Battery, Status};
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -39,6 +40,7 @@ const ID_REFRESH: usize = 1;
 const ID_CONFIGURATOR: usize = 2;
 const ID_EXIT: usize = 3;
 const ID_AUTOSTART: usize = 4;
+const ID_ESTIMATE: usize = 5;
 /// Always warn again here, even if the user's threshold is higher.
 const CRITICAL: u8 = 5;
 /// The battery has to climb this far above a threshold before that alert re-arms.
@@ -101,6 +103,8 @@ struct App {
     warned_low: bool,
     warned_critical: bool,
     warned_full: bool,
+    /// Recent discharge steps, for the time-remaining estimate.
+    discharge: Discharge,
 }
 
 thread_local! {
@@ -120,15 +124,23 @@ impl App {
         n
     }
 
-    fn is_low(&self, b: &Battery) -> bool {
-        !b.charging && self.cfg.threshold > 0 && b.percent <= self.cfg.threshold
+    /// "85% (~12h)", or just "85%" when there's no estimate (yet), it's switched
+    /// off, or the mouse is charging.
+    fn level_text(&self, b: &Battery) -> String {
+        let left = (self.cfg.show_estimate && !b.charging)
+            .then(|| self.discharge.hours_left(unix_now(), b.percent))
+            .flatten();
+        match left {
+            Some(h) => format!("{}% ({})", b.percent, remaining::format_hours(h)),
+            None => format!("{}%", b.percent),
+        }
     }
 
     fn summary(&self) -> (String, String) {
         match (self.status, &self.last) {
             (None, _) => ("Checking…".into(), String::new()),
             (Some(Status::Battery(b)), _) => (
-                format!("Battery {}%", b.percent),
+                format!("Battery {}", self.level_text(&b)),
                 format!("{} · {}", if b.charging { "Charging" } else { "Not charging" }, volts(b.millivolts)),
             ),
             (Some(Status::MouseOffline), Some((b, at, _))) => {
@@ -141,26 +153,18 @@ impl App {
 
     fn redraw(&mut self) {
         let light = icon::taskbar_is_light();
+        // Colour follows the level (charging shows in the tooltip and menu).
         let (text, tone) = match (self.status, &self.last) {
-            (Some(Status::Battery(b)), _) => (
-                b.percent.to_string(),
-                if b.charging {
-                    Tone::Charging
-                } else if self.is_low(&b) {
-                    Tone::Low
-                } else {
-                    Tone::Normal
-                },
-            ),
+            (Some(Status::Battery(b)), _) => (b.percent.to_string(), Tone::for_percent(b.percent)),
             (Some(Status::MouseOffline), Some((b, _, _))) => (b.percent.to_string(), Tone::Stale),
             _ => ("–".to_string(), Tone::Stale),
         };
         let new_icon = icon::make_icon(&text, icon::color(tone, light), icon::tray_icon_size());
         let (line1, line2) = self.summary();
-        let tip = if line2.is_empty() {
-            format!("Hyperlight\n{line1}")
-        } else {
-            format!("Hyperlight\n{line1}\n{line2}")
+        let tip = match self.status {
+            Some(Status::Battery(b)) => format!("Mouse: {}\n{line2}", self.level_text(&b)),
+            _ if line2.is_empty() => line1,
+            _ => format!("{line1}\n{line2}"),
         };
 
         let mut n = self.nid();
@@ -245,6 +249,9 @@ impl App {
             if before != Some(shown) {
                 saved::store(raw.device_id, Saved { percent: shown, unix: now });
             }
+            if self.discharge.observe(now, shown, raw.charging) {
+                saved::store_discharge(&self.discharge);
+            }
             let b = Battery { percent: shown, ..raw };
             s = Status::Battery(b);
             self.last = Some((b, clock(), Instant::now()));
@@ -281,12 +288,19 @@ impl App {
             add(menu, MF_STRING, ID_REFRESH, "&Refresh now");
             // Alert settings are on the configurator's Performance page; Start with Windows is in both.
             add(menu, MF_STRING, ID_CONFIGURATOR, "Open &Configurator…");
-            let start = if autostart::is_enabled() { MF_CHECKED } else { MF_UNCHECKED };
-            add(menu, MF_STRING | start, ID_AUTOSTART, "Start with &Windows");
+            let check = |on: bool| if on { MF_CHECKED } else { MF_UNCHECKED };
+            add(menu, MF_STRING | check(self.cfg.show_estimate), ID_ESTIMATE, "Show &time remaining");
+            add(menu, MF_STRING | check(autostart::is_enabled()), ID_AUTOSTART, "Start with &Windows");
             add(menu, MF_SEPARATOR, 0, "");
             add(menu, MF_STRING, ID_EXIT, "E&xit");
             menu
         }
+    }
+
+    fn set_show_estimate(&mut self, on: bool) {
+        self.cfg.show_estimate = on;
+        self.cfg.save();
+        self.redraw();
     }
 
     /// Answers the configurator's Hyperlight Tray card (see web.rs), on the UI thread.
@@ -296,7 +310,10 @@ impl App {
             web::ApiCall::TestNotification => {
                 self.notify("Test notification", "Hyperlight Tray notifications are working.", false)
             }
-            web::ApiCall::Set { threshold, notify_full, autostart: start } => {
+            web::ApiCall::Set { threshold, notify_full, autostart: start, estimate } => {
+                if let Some(on) = estimate {
+                    self.set_show_estimate(on);
+                }
                 if let Some(t) = threshold {
                     self.cfg.threshold = t;
                     self.warned_low = false;
@@ -321,6 +338,7 @@ impl App {
             threshold: self.cfg.threshold,
             notify_full: self.cfg.notify_full,
             autostart: autostart::is_enabled(),
+            estimate: self.cfg.show_estimate,
         });
     }
 }
@@ -378,6 +396,9 @@ unsafe fn show_menu(hwnd: HWND) {
         ID_REFRESH => start_poll(hwnd),
         ID_CONFIGURATOR => open_configurator(),
         ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
+        ID_ESTIMATE => {
+            with_app(|a| a.set_show_estimate(!a.cfg.show_estimate));
+        }
         ID_EXIT => {
             DestroyWindow(hwnd);
         }
@@ -520,6 +541,7 @@ fn main() {
                 warned_low: false,
                 warned_critical: false,
                 warned_full: false,
+                discharge: saved::load_discharge(),
             })
         });
         with_app(|a| {

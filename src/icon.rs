@@ -11,23 +11,39 @@ use crate::wide;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tone {
-    Normal,
+    /// 50% and up.
+    Healthy,
+    /// 20–49%.
+    Moderate,
+    /// Under 20%: time to charge.
     Low,
-    Charging,
+    /// Mouse asleep or off: last known reading.
     Stale,
 }
 
-/// 0xRRGGBB for a tone on a light or dark taskbar.
+impl Tone {
+    pub fn for_percent(p: u8) -> Tone {
+        match p {
+            50.. => Tone::Healthy,
+            20..=49 => Tone::Moderate,
+            _ => Tone::Low,
+        }
+    }
+}
+
+/// 0xRRGGBB for a tone. Each colour has a light-taskbar and a dark-taskbar
+/// version, picked so the digits keep at least about 4.5:1 contrast against the
+/// taskbar Windows draws in that mode.
 pub fn color(tone: Tone, light_taskbar: bool) -> u32 {
     match (tone, light_taskbar) {
-        (Tone::Normal, false) => 0xFFFFFF,
-        (Tone::Normal, true) => 0x1A1A1A,
-        (Tone::Low, false) => 0xFF5F57,
+        (Tone::Healthy, false) => 0x6CCB5F,
+        (Tone::Healthy, true) => 0x0E700E,
+        (Tone::Moderate, false) => 0xFFA94D,
+        (Tone::Moderate, true) => 0xA85200,
+        (Tone::Low, false) => 0xFF6B61,
         (Tone::Low, true) => 0xC42B1C,
-        (Tone::Charging, false) => 0x6CCB5F,
-        (Tone::Charging, true) => 0x0F7B0F,
         (Tone::Stale, false) => 0x8A8A8A,
-        (Tone::Stale, true) => 0x767676,
+        (Tone::Stale, true) => 0x6E6E6E,
     }
 }
 
@@ -176,7 +192,7 @@ mod tests {
         let dir = std::env::temp_dir().join("hyperlight-tray-icons");
         std::fs::create_dir_all(&dir).unwrap();
         for size in [16, 20, 24, 32] {
-            for (text, tone) in [("25", Tone::Normal), ("8", Tone::Low), ("100", Tone::Charging), ("–", Tone::Stale)] {
+            for (text, tone) in [("85", Tone::Healthy), ("35", Tone::Moderate), ("8", Tone::Low), ("–", Tone::Stale)] {
                 for light in [false, true] {
                     let px = render_pixels(text, color(tone, light), size);
                     // Composite onto the taskbar colour so the file shows what users see.

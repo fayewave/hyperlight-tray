@@ -35,12 +35,13 @@ pub struct TrayInfo {
     pub threshold: u8,
     pub notify_full: bool,
     pub autostart: bool,
+    pub estimate: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ApiCall {
     Get,
-    Set { threshold: Option<u8>, notify_full: Option<bool>, autostart: Option<bool> },
+    Set { threshold: Option<u8>, notify_full: Option<bool>, autostart: Option<bool>, estimate: Option<bool> },
     TestNotification,
 }
 
@@ -233,6 +234,7 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
                     threshold: json_value(&body, "threshold").and_then(|v| v.parse::<u8>().ok()).filter(|t| *t <= 50),
                     notify_full: json_value(&body, "notifyFull").and_then(parse_bool),
                     autostart: json_value(&body, "autostart").and_then(parse_bool),
+                    estimate: json_value(&body, "estimate").and_then(parse_bool),
                 }
             }
         }
@@ -246,11 +248,12 @@ fn api(s: &mut TcpStream, req: &Request, local: &[String; 2]) -> std::io::Result
 
 fn info_json(i: &TrayInfo) -> String {
     format!(
-        "{{\"version\":\"{}\",\"threshold\":{},\"notifyFull\":{},\"autostart\":{}}}",
+        "{{\"version\":\"{}\",\"threshold\":{},\"notifyFull\":{},\"autostart\":{},\"estimate\":{}}}",
         env!("CARGO_PKG_VERSION"),
         i.threshold,
         i.notify_full,
-        i.autostart
+        i.autostart,
+        i.estimate
     )
 }
 
