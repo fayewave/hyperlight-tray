@@ -38,7 +38,7 @@ const SLIDE_PX: f32 = 8.0;
 pub const ICON_MOUSE: u16 = 0xE962;
 pub const ICON_REFRESH: u16 = 0xE72C;
 pub const ICON_SLIDERS: u16 = 0xE9E9;
-pub const ICON_STARTUP: u16 = 0xE7B5;
+pub const ICON_STARTUP: u16 = 0xE768; // outline play triangle
 pub const ICON_POWER: u16 = 0xE7E8;
 pub const ICON_CHARGING: u16 = 0xEA93;
 
