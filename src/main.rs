@@ -5,6 +5,7 @@
 mod autostart;
 mod config;
 mod icon;
+mod menu;
 mod saved;
 mod web;
 
@@ -270,31 +271,39 @@ impl App {
             && self.last.as_ref().is_some_and(|(_, _, at)| at.elapsed() < MENU_REFRESH_AGE)
     }
 
-    fn build_menu(&self) -> HMENU {
-        unsafe {
-            let menu = CreatePopupMenu();
-            let add = |m: HMENU, flags: u32, id: usize, text: &str| {
-                let t = wide(text);
-                AppendMenuW(m, flags, id, t.as_ptr());
-            };
-
-            let (line1, line2) = self.summary();
-            add(menu, MF_STRING | MF_GRAYED, 0, "Hyperlight Tray");
-            add(menu, MF_STRING | MF_GRAYED, 0, &line1);
-            if !line2.is_empty() {
-                add(menu, MF_STRING | MF_GRAYED, 0, &line2);
-            }
-            add(menu, MF_SEPARATOR, 0, "");
-            add(menu, MF_STRING, ID_REFRESH, "&Refresh now");
-            // Alert settings are on the configurator's Performance page; Start with Windows is in both.
-            add(menu, MF_STRING, ID_CONFIGURATOR, "Open &Configurator…");
-            let check = |on: bool| if on { MF_CHECKED } else { MF_UNCHECKED };
-            add(menu, MF_STRING | check(self.cfg.show_estimate), ID_ESTIMATE, "Show &time remaining");
-            add(menu, MF_STRING | check(autostart::is_enabled()), ID_AUTOSTART, "Start with &Windows");
-            add(menu, MF_SEPARATOR, 0, "");
-            add(menu, MF_STRING, ID_EXIT, "E&xit");
-            menu
-        }
+    /// Contents of the tray menu (drawn by menu.rs). Alert settings are on the
+    /// configurator's Performance page; Start with Windows is in both places.
+    fn menu_items(&self) -> Vec<menu::Item> {
+        use menu::Item;
+        let (text, detail) = self.summary();
+        let icon = match (self.status, &self.last) {
+            (Some(Status::Battery(b)), _) if b.charging => menu::ICON_CHARGING,
+            (Some(Status::Battery(b)), _) => menu::battery_icon(b.percent),
+            (Some(Status::MouseOffline), Some((b, _, _))) => menu::battery_icon(b.percent),
+            _ => menu::ICON_MOUSE,
+        };
+        vec![
+            Item::Title { icon: menu::ICON_MOUSE, text: "Hyperlight Tray".into() },
+            Item::Status { icon, text, detail },
+            Item::Separator,
+            Item::Action { id: ID_REFRESH, icon: menu::ICON_REFRESH, text: "Refresh now".into() },
+            Item::Action { id: ID_CONFIGURATOR, icon: menu::ICON_SLIDERS, text: "Open Configurator".into() },
+            Item::Separator,
+            Item::Toggle {
+                id: ID_ESTIMATE,
+                icon: menu::ICON_CLOCK,
+                text: "Show time remaining".into(),
+                on: self.cfg.show_estimate,
+            },
+            Item::Toggle {
+                id: ID_AUTOSTART,
+                icon: menu::ICON_STARTUP,
+                text: "Start with Windows".into(),
+                on: autostart::is_enabled(),
+            },
+            Item::Separator,
+            Item::Action { id: ID_EXIT, icon: menu::ICON_POWER, text: "Exit".into() },
+        ]
     }
 
     fn set_show_estimate(&mut self, on: bool) {
@@ -376,23 +385,13 @@ unsafe fn show_menu(hwnd: HWND) {
     if with_app(|a| a.reading_is_fresh()) == Some(false) {
         start_poll(hwnd);
     }
-    let Some(menu) = with_app(|a| a.build_menu()) else { return };
-    let mut pt = POINT { x: 0, y: 0 };
-    GetCursorPos(&mut pt);
-    SetForegroundWindow(hwnd);
-    let cmd = TrackPopupMenu(
-        menu,
-        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
-        pt.x,
-        pt.y,
-        0,
-        hwnd,
-        null(),
-    ) as usize;
-    PostMessageW(hwnd, WM_NULL, 0, 0);
-    DestroyMenu(menu);
-    match cmd {
-        0 => {}
+    let Some(items) = with_app(|a| a.menu_items()) else { return };
+    menu::show(hwnd, items);
+}
+
+/// A menu item was chosen (posted by menu.rs).
+unsafe fn run_command(hwnd: HWND, id: usize) {
+    match id {
         ID_REFRESH => start_poll(hwnd),
         ID_CONFIGURATOR => open_configurator(),
         ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
@@ -418,6 +417,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         web::WM_TRAY_API => {
             let req = &mut *(lp as *mut web::ApiRequest);
             with_app(|a| a.api(req));
+            0
+        }
+        menu::WM_MENU_COMMAND => {
+            run_command(hwnd, wp);
             0
         }
         WM_OPEN_CONFIGURATOR => {
