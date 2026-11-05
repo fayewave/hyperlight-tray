@@ -36,14 +36,9 @@ const TIMER_SOON: usize = 2;
 const TRAY_UID: u32 = 1;
 
 const ID_REFRESH: usize = 1;
-const ID_NOTIFY_FULL: usize = 2;
-const ID_AUTOSTART: usize = 3;
-const ID_TEST: usize = 4;
-const ID_EXIT: usize = 5;
-const ID_CONFIGURATOR: usize = 6;
-const ID_THRESHOLD: usize = 100; // + percent
-
-const THRESHOLDS: [u8; 7] = [0, 5, 10, 15, 20, 25, 30];
+const ID_CONFIGURATOR: usize = 2;
+const ID_EXIT: usize = 3;
+const ID_AUTOSTART: usize = 4;
 /// Always warn again here, even if the user's threshold is higher.
 const CRITICAL: u8 = 5;
 /// The battery has to climb this far above a threshold before that alert re-arms.
@@ -275,7 +270,6 @@ impl App {
                 let t = wide(text);
                 AppendMenuW(m, flags, id, t.as_ptr());
             };
-            let check = |on: bool| if on { MF_CHECKED } else { MF_UNCHECKED };
 
             let (line1, line2) = self.summary();
             add(menu, MF_STRING | MF_GRAYED, 0, &line1);
@@ -284,48 +278,49 @@ impl App {
             }
             add(menu, MF_SEPARATOR, 0, "");
             add(menu, MF_STRING, ID_REFRESH, "&Refresh now");
+            // Alert settings live in the configurator's Tray tab; Start with Windows is in both.
             add(menu, MF_STRING, ID_CONFIGURATOR, "Open &Configurator…");
-
-            let thresholds = CreatePopupMenu();
-            for t in THRESHOLDS {
-                let label = if t == 0 { "Off".to_string() } else { format!("{t}%") };
-                add(thresholds, MF_STRING | check(self.cfg.threshold == t), ID_THRESHOLD + t as usize, &label);
-            }
-            add(menu, MF_POPUP, thresholds as usize, "&Low battery alert at");
-            add(menu, MF_STRING | check(self.cfg.notify_full), ID_NOTIFY_FULL, "Alert when &fully charged");
-
-            add(menu, MF_STRING | check(autostart::is_enabled()), ID_AUTOSTART, "Start with &Windows");
-            add(menu, MF_STRING, ID_TEST, "Send &test notification");
+            let start = if autostart::is_enabled() { MF_CHECKED } else { MF_UNCHECKED };
+            add(menu, MF_STRING | start, ID_AUTOSTART, "Start with &Windows");
             add(menu, MF_SEPARATOR, 0, "");
             add(menu, MF_STRING, ID_EXIT, "E&xit");
             menu
         }
     }
 
-    fn on_command(&mut self, id: usize) {
-        match id {
-            ID_NOTIFY_FULL => {
-                self.cfg.notify_full = !self.cfg.notify_full;
-                self.cfg.save();
+    /// Answers the configurator's Tray tab (see web.rs), on the UI thread.
+    fn api(&mut self, req: &mut web::ApiRequest) {
+        match req.call {
+            web::ApiCall::Get => {}
+            web::ApiCall::TestNotification => {
+                self.notify("Test notification", "Hyperlight Tray notifications are working.", false)
             }
-            ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
-            ID_TEST => self.notify(
-                "Test notification",
-                "Hyperlight Tray notifications are working.",
-                false,
-            ),
-            id if (ID_THRESHOLD..=ID_THRESHOLD + 100).contains(&id) => {
-                self.cfg.threshold = (id - ID_THRESHOLD) as u8;
-                self.cfg.save();
-                self.warned_low = false;
-                self.warned_critical = false;
-                if let Some(Status::Battery(b)) = self.status {
-                    self.check_alerts(b);
+            web::ApiCall::Set { threshold, notify_full, autostart: start } => {
+                if let Some(t) = threshold {
+                    self.cfg.threshold = t;
+                    self.warned_low = false;
+                    self.warned_critical = false;
+                    if let Some(Status::Battery(b)) = self.status {
+                        self.check_alerts(b);
+                    }
+                    self.redraw();
                 }
-                self.redraw();
+                if let Some(on) = notify_full {
+                    self.cfg.notify_full = on;
+                }
+                if threshold.is_some() || notify_full.is_some() {
+                    self.cfg.save();
+                }
+                if let Some(on) = start {
+                    autostart::set(on);
+                }
             }
-            _ => {}
         }
+        req.result = Some(web::TrayInfo {
+            threshold: self.cfg.threshold,
+            notify_full: self.cfg.notify_full,
+            autostart: autostart::is_enabled(),
+        });
     }
 }
 
@@ -381,12 +376,11 @@ unsafe fn show_menu(hwnd: HWND) {
         0 => {}
         ID_REFRESH => start_poll(hwnd),
         ID_CONFIGURATOR => open_configurator(),
+        ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
         ID_EXIT => {
             DestroyWindow(hwnd);
         }
-        id => {
-            with_app(|a| a.on_command(id));
-        }
+        _ => {}
     }
 }
 
@@ -397,6 +391,11 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             if event == WM_RBUTTONUP || event == WM_LBUTTONUP {
                 show_menu(hwnd);
             }
+            0
+        }
+        web::WM_TRAY_API => {
+            let req = &mut *(lp as *mut web::ApiRequest);
+            with_app(|a| a.api(req));
             0
         }
         WM_OPEN_CONFIGURATOR => {
@@ -498,6 +497,7 @@ fn main() {
         if hwnd.is_null() {
             return;
         }
+        web::set_window(hwnd);
 
         let (cfg, existed) = Config::load();
         if !existed {
@@ -527,8 +527,8 @@ fn main() {
             if !existed {
                 a.notify(
                     "Hyperlight Tray is running",
-                    "Your mouse battery shows in the tray. Click the number for alert \
-                     settings and Start with Windows.",
+                    "Your mouse battery shows in the tray. Click it for Start with \
+                     Windows, or Open Configurator for alert settings.",
                     false,
                 );
             }

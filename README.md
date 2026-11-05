@@ -28,15 +28,17 @@ To uninstall: untick **Start with Windows**, exit, then delete the exe and `%APP
   grey while the mouse sleeps.
 - Shows the same percentage as the official utility, using the same voltage-based smoothing.
 - Alerts when the battery hits your chosen level (default 10%), again at 5%, and optionally when fully charged.
+  Set these in the configurator's **Tray** tab.
 - Checks every 30 seconds, and straight away when the receiver is plugged in or the PC wakes.
-- **Open Configurator…** opens the settings page. `hyperlight-tray.exe --configurator` does the same, for
-  shortcuts.
+- The tray menu has **Open Configurator…**, **Start with Windows** and **Exit**.
+  `hyperlight-tray.exe --configurator` opens the configurator too, for shortcuts.
 
 ## Configurator
 
 Change DPI stages and colours, polling rate, lift-off distance, motion sync, ripple control, angle snapping,
 performance mode, long distance mode, auto sleep, debounce and button assignments, and back up or restore your
-settings.
+settings. The **Tray** tab holds the tray app's own settings: battery alerts, Start with Windows and a test
+notification.
 
 - Needs Chrome, Edge or Opera on a computer (it uses WebHID).
 - Each change is saved to the mouse straight away and checked by reading it back. The mouse has to be awake.
