@@ -14,8 +14,18 @@ alert and uses far more resources:
 | CPU when idle        | wakes every 30 s for a few ms | polls continuously |
 | Low-battery alert    | yes          | no              |
 
-It doesn't replace the official utility's DPI, button, or lighting settings. Those are
-saved on the mouse itself, so set them once in the official utility and then close it.
+The bundled **Hyperlight Configurator** covers the official utility's other settings: DPI stages
+and their colours, polling rate, lift-off distance, the sensor toggles, auto sleep, debounce and
+button remapping. A few things still need the official utility:
+
+- assigning keyboard keys, media keys or macros to buttons
+- the onboard profiles
+- DPI above 12,800, or different X and Y DPI
+- the lighting effect options (off / steady / breathing)
+- receiver pairing and firmware updates
+
+Settings are saved on the mouse itself, so anything set in the official utility stays put when you
+close it.
 
 ## Features
 
