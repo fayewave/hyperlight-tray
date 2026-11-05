@@ -29,18 +29,19 @@ To uninstall: untick **Start with Windows**, exit, then delete the exe and `%APP
 - Follows Windows' light or dark taskbar automatically, with colours picked to stay readable on both.
 - Shows the same percentage as the official utility, using the same voltage-based smoothing.
 - Estimates time remaining from how fast the battery has been dropping since you last charged, e.g.
-  `Mouse: 85% (~12h)` or `42% (~4h 30m)` in the tooltip. **Show time remaining** in the tray menu turns it off.
+  `Mouse: 85% (~12h)` or `42% (~4h 30m)` in the tooltip. Turn it off in the configurator.
 - Alerts when the battery hits your chosen level (default 10%), again at 5%, and optionally when fully charged.
-  Set these at the top of the configurator's **Performance** page.
+  Set these at the top of the configurator's **Settings** page.
 - Checks every 30 seconds, and straight away when the receiver is plugged in or the PC wakes.
-- The tray menu has **Open Configurator…**, **Show time remaining**, **Start with Windows** and **Exit**.
+- Click the tray number for a menu with the battery status (and a refresh button), **Open Configurator**,
+  **Start with Windows** and **Exit**. It follows the light/dark taskbar and fades in above the icon.
   `hyperlight-tray.exe --configurator` opens the configurator too, for shortcuts.
 
 ## Configurator
 
 Change DPI stages and colours, polling rate, lift-off distance, motion sync, ripple control, angle snapping,
 performance mode, long distance mode, auto sleep, debounce and button assignments, and back up or restore your
-settings. When opened from the tray, two cards at the top of the Performance page hold the tray app's own
+settings. When opened from the tray, two cards at the top of the Settings page hold the tray app's own
 settings: **Battery alerts**, and **Hyperlight Tray** (time remaining, Start with Windows and a test notification).
 
 - Needs Chrome, Edge or Opera on a computer (it uses WebHID).

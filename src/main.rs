@@ -41,7 +41,6 @@ const ID_REFRESH: usize = 1;
 const ID_CONFIGURATOR: usize = 2;
 const ID_EXIT: usize = 3;
 const ID_AUTOSTART: usize = 4;
-const ID_ESTIMATE: usize = 5;
 /// Always warn again here, even if the user's threshold is higher.
 const CRITICAL: u8 = 5;
 /// The battery has to climb this far above a threshold before that alert re-arms.
@@ -260,6 +259,8 @@ impl App {
         }
         self.status = Some(s);
         self.redraw();
+        let (icon, text, detail) = self.status_row();
+        menu::update_status(icon, text, detail);
     }
 
     fn schedule(&self) {
@@ -273,8 +274,8 @@ impl App {
 
     /// Contents of the tray menu (drawn by menu.rs). Alert settings are on the
     /// configurator's Performance page; Start with Windows is in both places.
-    fn menu_items(&self) -> Vec<menu::Item> {
-        use menu::Item;
+    /// Icon, main line and detail line for the menu's battery row.
+    fn status_row(&self) -> (u16, String, String) {
         let (text, detail) = self.summary();
         let icon = match (self.status, &self.last) {
             (Some(Status::Battery(b)), _) if b.charging => menu::ICON_CHARGING,
@@ -282,19 +283,20 @@ impl App {
             (Some(Status::MouseOffline), Some((b, _, _))) => menu::battery_icon(b.percent),
             _ => menu::ICON_MOUSE,
         };
+        (icon, text, detail)
+    }
+
+    fn menu_items(&self) -> Vec<menu::Item> {
+        use menu::Item;
+        let (icon, text, detail) = self.status_row();
         vec![
             Item::Title { icon: menu::ICON_MOUSE, text: "Hyperlight Tray".into() },
-            Item::Status { icon, text, detail },
             Item::Separator,
-            Item::Action { id: ID_REFRESH, icon: menu::ICON_REFRESH, text: "Refresh now".into() },
+            // The small refresh button re-reads the battery and updates this row in place.
+            Item::Status { icon, text, detail, button: Some((ID_REFRESH, menu::ICON_REFRESH)) },
+            Item::Separator,
+            // Time remaining is switched on and off in the configurator only.
             Item::Action { id: ID_CONFIGURATOR, icon: menu::ICON_SLIDERS, text: "Open Configurator".into() },
-            Item::Separator,
-            Item::Toggle {
-                id: ID_ESTIMATE,
-                icon: menu::ICON_CLOCK,
-                text: "Show time remaining".into(),
-                on: self.cfg.show_estimate,
-            },
             Item::Toggle {
                 id: ID_AUTOSTART,
                 icon: menu::ICON_STARTUP,
@@ -395,9 +397,6 @@ unsafe fn run_command(hwnd: HWND, id: usize) {
         ID_REFRESH => start_poll(hwnd),
         ID_CONFIGURATOR => open_configurator(),
         ID_AUTOSTART => autostart::set(!autostart::is_enabled()),
-        ID_ESTIMATE => {
-            with_app(|a| a.set_show_estimate(!a.cfg.show_estimate));
-        }
         ID_EXIT => {
             DestroyWindow(hwnd);
         }

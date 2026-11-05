@@ -12,7 +12,7 @@ const STATUS_POLL_MS = 3000;
 const BATTERY_EVERY = 10; // status polls, so every 30 s
 
 const PAGES = [
-  { id: "performance", label: "Performance", icon: '<path d="M2 4h7M12 4h2M2 12h2M7 12h7M9 2v4M4 10v4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' },
+  { id: "settings", label: "Settings", icon: '<path d="M2 4h7M12 4h2M2 12h2M7 12h7M9 2v4M4 10v4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>' },
   { id: "buttons", label: "Buttons", icon: '<rect x="2" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/>' },
   { id: "device", label: "Device", icon: '<rect x="5" y="1.5" width="6" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v4" stroke="currentColor" stroke-width="1.3"/>' },
 ];
@@ -178,7 +178,7 @@ function toast(msg, kind = "ok") {
 
 const page = () => {
   const id = location.hash.replace("#", "");
-  return PAGES.some((p) => p.id === id) ? id : "performance";
+  return PAGES.some((p) => p.id === id) ? id : "settings"; // also catches old #performance links
 };
 
 // ---------------------------------------------------------------------------
@@ -739,7 +739,7 @@ function devicePage() {
 // ---------------------------------------------------------------------------
 // tray
 
-/** The tray app's own settings: two cards at the top of Performance when served by Hyperlight Tray. */
+/** The tray app's own settings: two cards at the top of Settings when served by Hyperlight Tray. */
 function trayCards() {
   const t = state.tray;
   const test = async () => {
