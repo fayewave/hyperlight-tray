@@ -1,6 +1,6 @@
 # Hyperlight Tray
 
-An unofficial, open-source alternative for the Hitscan Utility, for the original **Hitscan Hyperlight** mouse.
+An unofficial, open-source alternative to the Hitscan Utility, for the original **Hitscan Hyperlight** mouse.
 
 ---
 
