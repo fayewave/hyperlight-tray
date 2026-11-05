@@ -1,6 +1,8 @@
 # Hyperlight Tray
 
-An unofficial, open-source replacement for the Hitscan Utility, for the **Hitscan Hyperlight** mouse.
+An unofficial, open-source alternative for the Hitscan Utility, for the original **Hitscan Hyperlight** mouse.
+
+---
 
 <p>
   <img src="docs/tray-menu-dark.png" width="244" alt="The tray menu: battery status with a refresh button, Open Configurator, Start with Windows and Exit">
