@@ -28,6 +28,9 @@ saved on the mouse itself, so set them once in the official utility and then clo
 - Checks every 30 seconds, and again when the receiver is plugged in or the PC
   wakes from sleep. Each check is two 17-byte messages, so it costs next to nothing.
 - Start with Windows, set per user with no admin rights.
+- **Open Configurator…** in the tray menu opens the Hyperlight Configurator (below) in your browser for
+  DPI, polling rate, buttons and the other settings. `hyperlight-tray.exe --configurator` does the same,
+  which is handy for a desktop or Start menu shortcut.
 - No installer, no background service, no driver, no network access.
 
 ## Install
@@ -51,7 +54,12 @@ Mode, Auto Sleep, debounce, button remapping and settings backups. It talks to t
 so it works in Chrome, Edge or Opera on desktop, with nothing to install. It's a static site with no build step
 (plain ES modules), so it can be hosted on GitHub Pages.
 
-To run it locally:
+The tray app has the page built in. **Open Configurator…** starts a tiny web server that only this PC can
+reach (`http://localhost:47820`, or one of the next four ports if that one is taken), then opens the page in
+your default browser. The server only starts when you first open the page, and it only answers requests
+addressed to `localhost`.
+
+To run it on its own while working on it:
 
 ```
 py -m http.server 8765 --directory web

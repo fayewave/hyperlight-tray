@@ -6,6 +6,7 @@ mod autostart;
 mod config;
 mod icon;
 mod saved;
+mod web;
 
 use std::cell::RefCell;
 use std::mem;
@@ -27,6 +28,9 @@ use icon::Tone;
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_STATUS: u32 = WM_APP + 2;
+/// Sent by `hyperlight-tray.exe --configurator` to an already-running copy.
+const WM_OPEN_CONFIGURATOR: u32 = WM_APP + 3;
+const WINDOW_CLASS: &str = "HyperlightTrayWindow";
 const TIMER_POLL: usize = 1;
 const TIMER_SOON: usize = 2;
 const TRAY_UID: u32 = 1;
@@ -36,6 +40,7 @@ const ID_NOTIFY_FULL: usize = 2;
 const ID_AUTOSTART: usize = 3;
 const ID_TEST: usize = 4;
 const ID_EXIT: usize = 5;
+const ID_CONFIGURATOR: usize = 6;
 const ID_THRESHOLD: usize = 100; // + percent
 
 const THRESHOLDS: [u8; 7] = [0, 5, 10, 15, 20, 25, 30];
@@ -279,6 +284,7 @@ impl App {
             }
             add(menu, MF_SEPARATOR, 0, "");
             add(menu, MF_STRING, ID_REFRESH, "&Refresh now");
+            add(menu, MF_STRING, ID_CONFIGURATOR, "Open &Configurator…");
 
             let thresholds = CreatePopupMenu();
             for t in THRESHOLDS {
@@ -340,6 +346,18 @@ fn start_poll(hwnd: HWND) {
     });
 }
 
+fn open_configurator() {
+    if !web::open() {
+        with_app(|a| {
+            a.notify(
+                "Couldn't open the configurator",
+                "Ports 47820 to 47824 on this PC are all in use.",
+                true,
+            )
+        });
+    }
+}
+
 unsafe fn show_menu(hwnd: HWND) {
     if with_app(|a| a.reading_is_fresh()) == Some(false) {
         start_poll(hwnd);
@@ -362,6 +380,7 @@ unsafe fn show_menu(hwnd: HWND) {
     match cmd {
         0 => {}
         ID_REFRESH => start_poll(hwnd),
+        ID_CONFIGURATOR => open_configurator(),
         ID_EXIT => {
             DestroyWindow(hwnd);
         }
@@ -378,6 +397,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             if event == WM_RBUTTONUP || event == WM_LBUTTONUP {
                 show_menu(hwnd);
             }
+            0
+        }
+        WM_OPEN_CONFIGURATOR => {
+            open_configurator();
             0
         }
         WM_STATUS => {
@@ -430,13 +453,22 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
 fn main() {
     unsafe {
         let mutex_name = wide("Local\\HyperlightTray.SingleInstance");
+        let open_cfg = std::env::args().any(|a| a == "--configurator");
+        let class = wide(WINDOW_CLASS);
         let _mutex = CreateMutexW(null(), TRUE, mutex_name.as_ptr());
         if GetLastError() == ERROR_ALREADY_EXISTS {
+            // Already running: ask that copy to open the page, then leave.
+            if open_cfg {
+                let other = FindWindowW(class.as_ptr(), null());
+                if !other.is_null() {
+                    AllowSetForegroundWindow(u32::MAX); // ASFW_ANY: let it bring the browser forward
+                    PostMessageW(other, WM_OPEN_CONFIGURATOR, 0, 0);
+                }
+            }
             return;
         }
 
         let hinst = GetModuleHandleW(null());
-        let class = wide("HyperlightTrayWindow");
         let mut wc: WNDCLASSW = mem::zeroed();
         wc.lpfnWndProc = Some(wndproc);
         wc.hInstance = hinst;
@@ -502,6 +534,9 @@ fn main() {
             }
         });
         start_poll(hwnd);
+        if open_cfg {
+            PostMessageW(hwnd, WM_OPEN_CONFIGURATOR, 0, 0);
+        }
 
         let mut msg: MSG = mem::zeroed();
         while GetMessageW(&mut msg, null_mut(), 0, 0) > 0 {
