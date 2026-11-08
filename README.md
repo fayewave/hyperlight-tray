@@ -8,9 +8,8 @@ An unofficial, open-source alternative to the Hitscan Utility, for the original 
   <img src="docs/tray-menu-dark.png" width="244" alt="The tray menu: battery status with a refresh button, Open Configurator, Start with Windows and Exit">
 </p>
 
-- **Tray app.** The battery % sits in the taskbar, coloured green, orange or red as it runs down. It also gives
-  low-battery and fully-charged alerts, and estimates the time remaining. One ~320 KB exe using 2–5 MB of
-  memory, where the official utility takes about 30 MB.
+- **Tray app.** The battery % sits in the taskbar. It also gives
+  low-battery and fully-charged alerts, and estimates the time remaining.
 
 <img src="docs/configurator-settings.png" width="720" alt="The configurator's Settings page in demo mode">
 
@@ -28,12 +27,7 @@ To uninstall: untick **Start with Windows**, exit, then delete the exe and `%APP
 
 ## Web Configurator
 
-Choose **Open Configurator...** in the tray menu. It needs Chrome, Edge or Opera, because it uses WebHID. Changes
-are saved to the mouse straight away, and the mouse has to be awake. Add `?demo` to the address to try it without a
-mouse.
-
-Not supported yet: keyboard keys, media keys or macros on buttons, onboard profiles, DPI above 12,800, and lighting
-effects. Firmware updates and receiver pairing are left out on purpose.
+Choose **Open Configurator...** in the tray menu. Requires Chrome, Edge or Opera.
 
 ## Stream Deck
 
