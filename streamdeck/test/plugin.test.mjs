@@ -15,7 +15,9 @@ test("key shows the number in the tray's colours", () => {
   const all = options({ showRemaining: true, showCharging: true, showAsleep: true });
   const svg = (s) => keySvg(view(s, all));
   assert.match(svg({ state: "battery", percent: 85, charging: false, remaining: "~12h" }), new RegExp(`fill="${COLORS.healthy}">85<.*>~12h<`));
-  assert.match(svg({ state: "battery", percent: 35, charging: true }), new RegExp(`fill="${COLORS.moderate}">35<.*>Charging<`));
+  assert.match(svg({ state: "battery", percent: 26, charging: false }), new RegExp(`fill="${COLORS.healthy}">26<`));
+  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`fill="${COLORS.moderate}">25<.*>Charging<`));
+  assert.match(svg({ state: "battery", percent: 20, charging: false }), new RegExp(`fill="${COLORS.moderate}">20<`));
   assert.match(svg({ state: "battery", percent: 8, charging: false }), new RegExp(`fill="${COLORS.low}">8<`));
   assert.match(svg({ state: "battery", percent: 100 }), /font-size="76"[^>]*>100</);
   assert.match(svg({ state: "asleep", percent: 60 }), new RegExp(`fill="${COLORS.stale}">60<.*>Asleep<`));

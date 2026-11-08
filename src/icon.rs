@@ -11,9 +11,9 @@ use crate::wide;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tone {
-    /// 50% and up.
+    /// Over 25%.
     Healthy,
-    /// 20–49%.
+    /// 20–25%.
     Moderate,
     /// Under 20%: time to charge.
     Low,
@@ -24,8 +24,8 @@ pub enum Tone {
 impl Tone {
     pub fn for_percent(p: u8) -> Tone {
         match p {
-            50.. => Tone::Healthy,
-            20..=49 => Tone::Moderate,
+            26.. => Tone::Healthy,
+            20..=25 => Tone::Moderate,
             _ => Tone::Low,
         }
     }
@@ -251,6 +251,16 @@ pub fn make_icon(text: &str, rgb: u32, size: i32, badge: Option<u32>) -> HICON {
 mod tests {
     use super::*;
 
+    #[test]
+    fn tone_thresholds() {
+        assert_eq!(Tone::for_percent(100), Tone::Healthy);
+        assert_eq!(Tone::for_percent(26), Tone::Healthy);
+        assert_eq!(Tone::for_percent(25), Tone::Moderate);
+        assert_eq!(Tone::for_percent(20), Tone::Moderate);
+        assert_eq!(Tone::for_percent(19), Tone::Low);
+        assert_eq!(Tone::for_percent(0), Tone::Low);
+    }
+
     /// Rows that have visible pixels: (first, last).
     fn ink_rows(px: &[u32], size: i32) -> (i32, i32) {
         let rows: Vec<i32> = (0..size)
@@ -288,7 +298,7 @@ mod tests {
         let dir = std::env::temp_dir().join("hyperlight-tray-icons");
         std::fs::create_dir_all(&dir).unwrap();
         for size in [16, 20, 24, 32] {
-            for (text, tone) in [("85", Tone::Healthy), ("35", Tone::Moderate), ("8", Tone::Low), ("–", Tone::Stale)] {
+            for (text, tone) in [("85", Tone::Healthy), ("25", Tone::Moderate), ("8", Tone::Low), ("–", Tone::Stale)] {
                 for light in [false, true] {
                     let mut px = render_pixels(text, color(tone, light), size);
                     if text == "85" {

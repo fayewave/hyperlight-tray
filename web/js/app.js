@@ -412,8 +412,8 @@ function renderNav() {
 
 function batteryIcon(pct, charging) {
   const w = Math.max(1, Math.round((pct / 100) * 9));
-  // Same scheme as the tray icon: green 50%+, orange 20-49%, red under 20%.
-  const fill = pct >= 50 ? "var(--level-high)" : pct >= 20 ? "var(--level-mid)" : "var(--level-low)";
+  // Same scheme as the tray icon: green over 25%, orange 20-25%, red under 20%.
+  const fill = pct > 25 ? "var(--level-high)" : pct >= 20 ? "var(--level-mid)" : "var(--level-low)";
   return icon(`<rect x="1" y="4.5" width="12" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>` +
     `<rect x="13.5" y="6.5" width="1.5" height="3" rx=".5" fill="currentColor"/>` +
     `<rect x="2.5" y="6" width="${w}" height="4" rx=".5" fill="${fill}"/>`, "batt");

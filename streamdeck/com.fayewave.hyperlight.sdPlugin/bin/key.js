@@ -6,7 +6,7 @@ const MUTED = "#9ba3a7";
 const ACCENT = "#4cc2ff";
 
 export function tone(percent) {
-  return percent >= 50 ? "healthy" : percent >= 20 ? "moderate" : "low";
+  return percent > 25 ? "healthy" : percent >= 20 ? "moderate" : "low";
 }
 
 /**
