@@ -15,8 +15,7 @@ An unofficial, open-source alternative to the Hitscan Utility, for the original 
 
 - **Web Configurator.** A browser page for DPI, polling rate, lift-off distance, sensor options, sleep, debounce and
   buttons. Open it from the tray.
-- **Stream Deck plugin.** The tray's battery number on a Stream Deck key.
-
+  
 ## Install
 
 1. Download `hyperlight-tray.exe` from [Releases](https://github.com/fayewave/hyperlight-tray/releases/latest).
