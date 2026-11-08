@@ -5,17 +5,15 @@
 // blue while charging, up to a dot at the level, grey after).
 //
 // Keys are drawn in a 96-unit box (one unit = one Stream Deck XL pixel) and handed to
-// Stream Deck as a 144px SVG. Stream Deck's SVG renderer is basic, so: no CSS, no
-// filters, no tspan offsets, and only installed fonts.
-import fs from "node:fs";
-import path from "node:path";
-import { DIGITS } from "./digits.js";
+// Stream Deck as a 144px SVG. Stream Deck's SVG renderer is basic (no CSS, no filters)
+// and only draws text in installed fonts, so all the text is drawn from the outlines
+// in glyphs.js: the number in Optician Sans, the rest in Bai Jamjuree Bold.
+import { DIGITS, TEXT } from "./glyphs.js";
 
 /** Apple's system colours, as on the Aircon keys. */
 /** charging: an electric blue, deeper than the update dot's light blue. */
 export const COLORS = { healthy: "#30D158", moderate: "#FF9F0A", low: "#FF453A", stale: "#8E8E93", charging: "#1E9BFF" };
 const GREY = "#8E8E93";
-const DIM = "#636366";
 const TRACK = "#2C2C2E";
 const ACCENT = "#64D2FF";
 /** No reading yet: the dash and caption dimmed, like a switched-off AC. */
@@ -26,13 +24,13 @@ export function tone(percent) {
 }
 
 /**
- * The key's own options (its settings in Stream Deck). The text lines are off until
- * turned on, so by default the line under the name is empty; so is the update dot.
+ * The key's own options (its settings in Stream Deck). The charging and time-left
+ * lines are on until turned off; the asleep line and update dot are off until turned on.
  */
 export function options(settings) {
   return {
-    remaining: settings?.showRemaining === true,
-    charging: settings?.showCharging === true,
+    remaining: settings?.showRemaining !== false,
+    charging: settings?.showCharging !== false,
     asleep: settings?.showAsleep === true,
     update: settings?.showUpdate === true,
   };
@@ -68,47 +66,30 @@ export function view(s, opts = options()) {
   }
 }
 
-/* ---------- fonts (the same pick and widths as the Aircon plugin's draw.js) ---------- */
-/** Nunito (free, rounded, close to Apple's SF Rounded) when installed, else Segoe UI. */
-export function pickFont(dirs = fontDirs()) {
-  for (const dir of dirs) {
-    try {
-      if (fs.readdirSync(dir).some((f) => /^nunito/i.test(f))) return "Nunito";
-    } catch {
-      // folder missing
-    }
-  }
-  return "Segoe UI";
-}
-function fontDirs() {
-  const dirs = [path.join(process.env.WINDIR ?? "C:\\Windows", "Fonts")];
-  if (process.env.LOCALAPPDATA) dirs.push(path.join(process.env.LOCALAPPDATA, "Microsoft", "Windows", "Fonts"));
-  return dirs;
-}
-let FONT = "Segoe UI";
-export const setFont = (f) => (FONT = f);
+/* ---------- text, drawn from glyph outlines ---------- */
+const f2 = (n) => Number(n.toFixed(2));
+const glyph = (font, ch) => font[ch] ?? (font === TEXT ? TEXT["?"] : DIGITS["–"]);
 
-/*
- * Stream Deck can't measure text for us, so: advance widths (thousandths of the font
- * size) of printable ASCII plus … ’ °, measured in Chrome. Segoe UI's 800 and 900 both
- * come out as Segoe UI Black. Unknown characters count as wide.
- */
-const CHARS = [...Array(95)].map((_, i) => String.fromCharCode(32 + i)).join("") + "\u2026\u2019\u00b0";
-const table = (csv) => new Map(csv.split(",").map((w, i) => [CHARS[i], Number(w) / 1000]));
-const SEGOE = table("278,366,580,599,599,898,739,344,421,421,484,715,320,407,320,482,599,483,599,599,621,599,599,599,599,599,320,320,715,715,715,423,949,750,691,630,759,552,541,727,802,349,511,690,541,987,812,765,656,765,682,572,636,740,702,1053,702,650,641,421,482,421,715,415,347,561,642,495,642,560,431,642,617,308,308,593,308,950,626,634,642,642,436,483,417,626,588,845,621,574,509,421,398,421,715,1046,339,386");
-const WIDTHS = {
-  "Segoe UI": { 800: SEGOE, 900: SEGOE },
-  Nunito: {
-    800: table("279,260,481,600,600,954,745,256,382,382,454,600,260,440,260,331,600,600,600,600,600,600,600,600,600,600,260,260,600,600,600,468,952,753,695,684,774,605,570,742,780,297,372,688,573,876,753,796,664,796,696,641,632,743,727,1120,685,631,615,377,331,377,600,500,388,557,610,478,610,549,382,615,595,268,273,558,333,889,595,589,610,610,412,492,404,590,534,861,559,533,480,414,302,414,600,780,260,384"),
-    900: table("286,272,515,600,600,964,766,269,407,407,456,600,272,445,272,349,600,600,600,600,600,600,600,600,600,600,272,272,600,600,600,478,954,763,702,688,786,614,579,747,786,312,390,712,585,884,758,807,676,807,706,651,644,748,742,1128,698,645,625,401,349,401,600,500,399,568,620,484,620,555,402,626,606,281,287,580,348,902,606,602,620,620,434,496,426,601,542,868,572,541,487,438,316,438,600,816,272,389"),
-  },
-};
-/** Width of str in the current font. spacing = letter-spacing, added after each character. */
-export function textWidth(str, size, { weight = 800, spacing = 0 } = {}) {
-  const t = (WIDTHS[FONT] ?? WIDTHS["Segoe UI"])[weight >= 850 ? 900 : 800];
+/** Width of str at size in units; track = extra space after each character. */
+export function textWidth(str, size, { font = TEXT, track = 0 } = {}) {
   let w = 0;
-  for (const ch of String(str)) w += t.get(ch) ?? 0.9;
-  return w * size + spacing * [...String(str)].length;
+  for (const ch of String(str)) w += glyph(font, ch).w * size + track;
+  return w;
+}
+
+/**
+ * str as one path per glyph, left end at x, baseline at y. track = extra space after
+ * each character, in units (negative pulls them closer). Returns the SVG and the end x.
+ */
+function draw(x, y, str, size, fill, { font = TEXT, track = 0 } = {}) {
+  let s = "";
+  const k = Number((size / 1000).toFixed(5));
+  for (const ch of String(str)) {
+    const g = glyph(font, ch);
+    if (g.d) s += `<path transform="translate(${f2(x)} ${f2(y)}) scale(${k})" d="${g.d}" fill="${fill}"/>`;
+    x += g.w * size + track;
+  }
+  return { svg: s, end: x };
 }
 
 /** str cut to fit max units wide, ending in "…" when it had to be cut. */
@@ -116,31 +97,10 @@ function truncate(str, size, max, opts = {}) {
   str = String(str);
   if (textWidth(str, size, opts) <= max) return str;
   let chars = [...str];
-  while (chars.length > 1 && textWidth(`${chars.join("").trimEnd()}\u2026`, size, opts) > max) chars = chars.slice(0, -1);
-  return `${chars.join("").trimEnd()}\u2026`;
+  while (chars.length > 1 && textWidth(`${chars.join("").trimEnd()}…`, size, opts) > max) chars = chars.slice(0, -1);
+  return `${chars.join("").trimEnd()}…`;
 }
 
-/* ---------- primitives ---------- */
-const f2 = (n) => Number(n.toFixed(2));
-const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const text = (x, y, str, { size = 14, weight = 800, fill = "#fff", spacing = 0, family = FONT } = {}) =>
-  `<text x="${f2(x)}" y="${f2(y)}" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}" ` +
-  `text-anchor="start"${spacing ? ` letter-spacing="${spacing}"` : ""}>${esc(str)}</text>`;
-/**
- * The number line in Optician Sans, drawn from the outlines in digits.js so it looks
- * the same on every PC (Stream Deck only draws text in installed fonts). Each glyph is
- * placed on its own, track = extra space after each, in units. Returns the end x.
- */
-function glyphs(x, y, str, size, fill, track = 0) {
-  let s = "";
-  const k = size / 1000;
-  for (const ch of String(str)) {
-    const g = DIGITS[ch] ?? DIGITS["–"];
-    s += `<path transform="translate(${f2(x)} ${f2(y)}) scale(${Number(k.toFixed(5))})" d="${g.d}" fill="${fill}"/>`;
-    x += g.w * size + track;
-  }
-  return { svg: s, end: x };
-}
 const wrap = (body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 96 96">` +
   `<rect width="96" height="96" fill="#000"/>${body}</svg>`;
@@ -156,15 +116,15 @@ const NAME_MAX = 79;
 
 function name(color) {
   const size = Math.min(17, Math.floor((NAME_MAX / textWidth(NAME, 1)) * 2) / 2);
-  return text(X, 23, NAME, { size, fill: color });
+  return draw(X, 23, NAME, size, color).svg;
 }
-/** The line under the name: 13px caps, down to 11.5px to fit, then cut with "…". */
+/** The line under the name: 13px caps, down to 11px to fit, then cut with "…". */
 function label(str, color, max) {
   str = String(str).toUpperCase();
-  const o = { weight: 900, spacing: 0.4 };
+  const o = { track: 0.4 };
   let size = 13;
-  while (size > 11.5 && textWidth(str, size, o) > max) size -= 0.5;
-  return text(X, LABEL_Y, truncate(str, size, max, o), { size, ...o, fill: color });
+  while (size > 11 && textWidth(str, size, o) > max) size -= 0.5;
+  return draw(X, LABEL_Y, truncate(str, size, max, o), size, color, o).svg;
 }
 
 /** The 0-100% bar: green (orange or red when low) up to the level, the grey track after it, and a white dot at the level. */
@@ -186,8 +146,8 @@ export function keySvg(v) {
   if (v.word != null) {
     s += name("#fff");
     s += label(v.caption, GREY, labelMax);
-    const size = Math.min(24, Math.floor(79 / textWidth(v.word, 1, { weight: 900 })));
-    s += text(X - 1, NUM_Y, v.word, { size, weight: 900, fill: GREY });
+    const size = Math.min(24, Math.floor(79 / textWidth(v.word, 1)));
+    s += draw(X - 1, NUM_Y, v.word, size, GREY).svg;
     s += `<rect x="${X}" y="${BAR.y}" width="${BAR.w}" height="${BAR.h}" rx="${BAR.h / 2}" fill="${TRACK}"/>`;
   } else {
     const num = v.percent == null ? "–" : String(v.percent);
@@ -197,11 +157,11 @@ export function keySvg(v) {
     // Segoe UI Black's x-height), hence the big sizes, and spaced wide, so they're pulled
     // 6% of the size closer. "100%" goes a size down to fit.
     const [size, pct] = num.length >= 3 ? [40, 23] : [46, 26];
-    const n = glyphs(X - 1, NUM_Y, num, size, v.dim ? OFF.number : (v.color ?? "#fff"), -0.06 * size);
+    const n = draw(X - 1, NUM_Y, num, size, v.dim ? OFF.number : (v.color ?? "#fff"), { font: DIGITS, track: -0.06 * size });
     s += n.svg;
     // A small % after the number, like the Zones key's "/6" (grey, or the number's colour
     // when low or charging).
-    if (v.percent != null) s += glyphs(n.end + 2.5, NUM_Y, "%", pct, v.dim ? OFF.text : (v.color ?? GREY)).svg;
+    if (v.percent != null) s += draw(n.end + 2.5, NUM_Y, "%", pct, v.dim ? OFF.text : (v.color ?? GREY), { font: DIGITS }).svg;
     s += bar(v.percent, v.dim, v.color ?? COLORS.healthy);
   }
   if (v.dot) s += `<circle cx="84" cy="37.5" r="5" fill="${ACCENT}"/>`;

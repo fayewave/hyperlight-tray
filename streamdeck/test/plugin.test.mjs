@@ -7,30 +7,37 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { view, options, keySvg, COLORS } from "../com.fayewave.hyperlight.sdPlugin/bin/key.js";
-import { DIGITS } from "../com.fayewave.hyperlight.sdPlugin/bin/digits.js";
+import { DIGITS, TEXT } from "../com.fayewave.hyperlight.sdPlugin/bin/glyphs.js";
 import { encodeFrame, FrameReader, OP } from "../com.fayewave.hyperlight.sdPlugin/bin/socket.js";
 
-/** Regex source for str drawn from the bundled Optician Sans outlines, in that colour. */
+/** Regex source for str drawn from the bundled outlines, every glyph in that colour (spaces draw nothing). */
 const reEscape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const glyphs = (str, fill) => [...String(str)].map((c) => `d="${reEscape(DIGITS[c].d)}" fill="${fill}"`).join(".*");
+const drawn = (str, fill, font = TEXT) =>
+  [...String(str)]
+    .filter((c) => font[c].d)
+    .map((c) => `d="${reEscape(font[c].d)}" fill="${fill}"`)
+    .join(".*");
+/** The same, for the battery number's Optician Sans outlines. */
+const digits = (str, fill) => drawn(str, fill, DIGITS);
+const GREY = "#8E8E93";
+const name = drawn("Hyperlight", "#fff");
 
 const PLUGIN = fileURLToPath(new URL("../com.fayewave.hyperlight.sdPlugin/bin/plugin.js", import.meta.url));
 
 test("key: Hyperlight and a caps line on top, the percent and bar (orange/red when low) along the bottom", () => {
-  const all = options({ showRemaining: true, showCharging: true, showAsleep: true, showUpdate: true });
-  const svg = (s) => keySvg(view(s, all));
+  const svg = (s) => keySvg(view(s, options({ showUpdate: true })));
   // The number and its % in one colour: white/grey when healthy, orange or red when low.
-  const num = (n, color, pct = color) => new RegExp(`fill="#fff"[^>]*>Hyperlight<.*${glyphs(n, color)}.*${glyphs("%", pct)}`);
+  const num = (n, color, pct = color) => new RegExp(`${name}.*${digits(n, color)}.*${digits("%", pct)}`);
   const k85 = svg({ state: "battery", percent: 85, charging: false, remaining: "~12h" });
-  assert.match(k85, num(85, "#fff", "#8E8E93"));
+  assert.match(k85, num(85, "#fff", GREY));
   // The caps line sits under the name, above the number.
-  assert.match(k85, /y="23"[^>]*>Hyperlight<.*y="42"[^>]*>~12H<.*<path transform="translate\(8 76\) scale\(0.046\)"/);
+  assert.match(k85, new RegExp(`translate\\(9 23\\)[^>]*${drawn("H", "#fff")}.*translate\\(9 42\\)[^>]*${drawn("~", GREY)}.*${drawn("12H", GREY)}.*translate\\(8 76\\) scale\\(0.046\\)`));
   // Along the bottom: grey track the full 78 wide, green over it up to 85%.
   assert.match(k85, new RegExp(`<rect x="9" y="84" width="78"[^>]*fill="#2C2C2E"/>.*<rect x="9" y="84" width="66.3"[^>]*fill="${COLORS.healthy}"`));
   // The dot sits at 85% along the 78-wide bar starting at x=9.
   assert.match(k85, /<circle cx="75.3" cy="86.5"/);
-  assert.match(svg({ state: "battery", percent: 26 }), num(26, "#fff", "#8E8E93"));
-  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`>CHARGING<.*${glyphs(25, COLORS.charging)}.*<rect x="9" y="84" width="19.5"[^>]*fill="${COLORS.charging}"`));
+  assert.match(svg({ state: "battery", percent: 26 }), num(26, "#fff", GREY));
+  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`${drawn("CHARGING", GREY)}.*${digits(25, COLORS.charging)}.*<rect x="9" y="84" width="19.5"[^>]*fill="${COLORS.charging}"`));
   assert.match(svg({ state: "battery", percent: 20 }), num(20, COLORS.moderate));
   const k8 = svg({ state: "battery", percent: 8 });
   assert.match(k8, num(8, COLORS.low));
@@ -38,62 +45,66 @@ test("key: Hyperlight and a caps line on top, the percent and bar (orange/red wh
   assert.match(k8, new RegExp(`<rect x="9" y="84" width="6.24"[^>]*fill="${COLORS.low}"`));
   assert.match(svg({ state: "battery", percent: 22 }), new RegExp(`<rect x="9" y="84" width="17.16"[^>]*fill="${COLORS.moderate}"`));
   assert.match(svg({ state: "battery", percent: 100 }), /<circle cx="87"/);
-  assert.match(svg({ state: "asleep", percent: 60 }), new RegExp(`fill="#fff"[^>]*>Hyperlight<.*>ASLEEP<.*${glyphs(60, "#fff")}.*opacity="1"`));
-  assert.match(svg({ state: "noReceiver" }), new RegExp(`>NO RECEIVER<.*${glyphs("–", "#8E8E93")}`));
-  assert.match(svg({ state: "stopped" }), />TRAY OFF<.*>Start</);
-  assert.match(svg({ state: "outdated" }), />OLD TRAY<.*font-size="22"[^>]*>Update</);
-  assert.match(svg({ state: "missing" }), />NO TRAY<.*>Get</);
-  assert.match(svg(undefined), new RegExp(glyphs("–", "#6C6C70")));
-  assert.doesNotMatch(svg(undefined), /letter-spacing/);
+  assert.match(keySvg(view({ state: "asleep", percent: 60 }, options({ showAsleep: true }))), new RegExp(`${name}.*${drawn("ASLEEP", GREY)}.*${digits(60, "#fff")}.*opacity="1"`));
+  assert.match(svg({ state: "noReceiver" }), new RegExp(`${drawn("NO RECEIVER", GREY)}.*${digits("–", GREY)}`));
+  assert.match(svg({ state: "stopped" }), new RegExp(`${drawn("TRAY OFF", GREY)}.*${drawn("Start", GREY)}`));
+  assert.match(svg({ state: "outdated" }), new RegExp(`${drawn("OLD TRAY", GREY)}.*${drawn("Update", GREY)}`));
+  assert.match(svg({ state: "missing" }), new RegExp(`${drawn("NO TRAY", GREY)}.*${drawn("Get", GREY)}`));
+  assert.match(svg(undefined), new RegExp(digits("–", "#6C6C70")));
   assert.doesNotMatch(svg({ state: "battery", percent: 85 }), /fill="#64D2FF"/);
   assert.match(svg({ state: "battery", percent: 85, update: "v0.2.0" }), /fill="#64D2FF"/);
-  assert.match(svg({ state: "battery", percent: 85, remaining: "<b>" }), />&lt;B&gt;</);
+  // Text from the tray is drawn, never put in the SVG as markup.
+  const odd = svg({ state: "battery", percent: 85, remaining: "<b>" });
+  assert.match(odd, new RegExp(drawn("<B>", GREY)));
+  assert.doesNotMatch(odd, /<b>|<B>|<text/);
 });
 
-test("key options: text lines are opt-in (nothing under the name without them), and so is the update dot", () => {
+test("key options: charging and time left on by default, asleep and the update dot off", () => {
   const s = { state: "battery", percent: 85, charging: false, remaining: "~12h", update: "v0.2.0" };
-  // Defaults: no caps line (no letter-spaced text) and no update dot.
+  const remaining = drawn("~12H", GREY);
+  // Defaults: the time left shows, the update dot doesn't.
   const plain = keySvg(view(s, options({})));
-  assert.doesNotMatch(plain, /letter-spacing|BATTERY|#64D2FF/);
-  assert.doesNotMatch(plain, /~12H/);
-  assert.doesNotMatch(keySvg(view(s)), /letter-spacing/);
-  assert.match(keySvg(view(s, options({ showRemaining: true, showUpdate: true }))), />~12H<.*fill="#64D2FF"/);
+  assert.match(plain, new RegExp(remaining));
+  assert.doesNotMatch(plain, /#64D2FF/);
+  assert.match(keySvg(view(s)), new RegExp(remaining));
+  assert.match(keySvg(view(s, options({ showUpdate: true }))), new RegExp(`${remaining}.*fill="#64D2FF"`));
   const bare = keySvg(view(s, options({ showRemaining: false, showUpdate: false })));
-  assert.match(bare, new RegExp(glyphs(85, "#fff")));
-  assert.doesNotMatch(bare, /~12H|#64D2FF/);
+  assert.match(bare, new RegExp(digits(85, "#fff")));
+  assert.doesNotMatch(bare, new RegExp(`${remaining}|#64D2FF`));
   // Charging and Asleep have their own options. Charging keeps the %, and has no bolt.
   const charging = { ...s, charging: true, remaining: null };
-  const chargingKey = keySvg(view(charging, options({ showCharging: true })));
-  assert.match(chargingKey, new RegExp(`>CHARGING<.*${glyphs("%", COLORS.charging)}`));
+  const chargingKey = keySvg(view(charging, options({})));
+  assert.match(chargingKey, new RegExp(`${drawn("CHARGING", GREY)}.*${digits("%", COLORS.charging)}`));
   assert.doesNotMatch(chargingKey, /M13\.8/); // the old bolt
-  const noCharging = keySvg(view(charging, options({ showRemaining: true })));
+  const noCharging = keySvg(view(charging, options({ showCharging: false })));
   // Still blue without the text.
-  assert.match(noCharging, new RegExp(`${glyphs(85, COLORS.charging)}.*${glyphs("%", COLORS.charging)}`));
-  assert.doesNotMatch(noCharging, /CHARGING|M13\.8/);
+  assert.match(noCharging, new RegExp(`${digits(85, COLORS.charging)}.*${digits("%", COLORS.charging)}`));
+  assert.doesNotMatch(noCharging, new RegExp(`${drawn("CHARGING", GREY)}|M13\\.8`));
   const asleep = { state: "asleep", percent: 42 };
-  assert.match(keySvg(view(asleep, options({ showAsleep: true }))), />ASLEEP</);
+  assert.match(keySvg(view(asleep, options({ showAsleep: true }))), new RegExp(drawn("ASLEEP", GREY)));
   const noAsleep = keySvg(view(asleep, options({})));
   // Asleep keeps showing the last percent and bar as they were, not dimmed.
-  assert.match(noAsleep, new RegExp(`${glyphs(42, "#fff")}.*<g opacity="1"><rect[^>]*fill="${COLORS.healthy}"`));
-  assert.match(keySvg(view({ state: "asleep", percent: 12 }, options({}))), new RegExp(`${glyphs(12, COLORS.low)}.*fill="${COLORS.low}"`));
-  assert.doesNotMatch(noAsleep, /letter-spacing/);
-  assert.doesNotMatch(noAsleep, /ASLEEP/);
+  assert.match(noAsleep, new RegExp(`${digits(42, "#fff")}.*<g opacity="1"><rect[^>]*fill="${COLORS.healthy}"`));
+  assert.match(keySvg(view({ state: "asleep", percent: 12 }, options({}))), new RegExp(`${digits(12, COLORS.low)}.*fill="${COLORS.low}"`));
+  assert.doesNotMatch(noAsleep, new RegExp(drawn("ASLEEP", GREY)));
 });
 
-test("key: the number and % drawn from the bundled Optician Sans outlines", () => {
-  const k = keySvg(view({ state: "battery", percent: 85 }));
-  // No font needed: one path per glyph, 6% of the size closer than the font's spacing.
-  assert.doesNotMatch(k, /font-family="Optician/);
-  assert.match(k, new RegExp(`translate\\(8 76\\) scale\\(0.046\\)" ${glyphs(8, "#fff")}.*translate\\(30.54 76\\) scale\\(0.046\\)" ${glyphs(5, "#fff")}.*scale\\(0.026\\)" ${glyphs("%", "#8E8E93")}`));
-  // The name and the caps line stay text.
-  assert.match(keySvg(view({ state: "battery", percent: 85, remaining: "~12h" }, options({ showRemaining: true }))), /font-family="Segoe UI"[^>]*>Hyperlight<.*font-family="Segoe UI"[^>]*>~12H</);
+test("key: all text drawn from the bundled outlines, no fonts needed", () => {
+  const k = keySvg(view({ state: "battery", percent: 85, remaining: "~12h" }));
+  assert.doesNotMatch(k, /<text|font-family/);
+  // The number: one path per glyph, 6% of the size closer than the font's spacing.
+  assert.match(k, new RegExp(`translate\\(8 76\\) scale\\(0.046\\)" ${digits(8, "#fff")}.*translate\\(30.54 76\\) scale\\(0.046\\)" ${digits(5, "#fff")}.*scale\\(0.026\\)" ${digits("%", GREY)}`));
   // "100%" a size down to fit, and ends inside the key.
   const k100 = keySvg(view({ state: "battery", percent: 100 }));
-  assert.match(k100, new RegExp(`scale\\(0.04\\)" ${glyphs(1, "#fff")}.*${glyphs(0, "#fff")}.*${glyphs(0, "#fff")}.*scale\\(0.023\\)" ${glyphs("%", "#8E8E93")}`));
+  assert.match(k100, new RegExp(`scale\\(0.04\\)" ${digits(1, "#fff")}.*${digits(0, "#fff")}.*${digits(0, "#fff")}.*scale\\(0.023\\)" ${digits("%", GREY)}`));
   const pctX = Number(k100.match(/translate\(([\d.]+) 76\) scale\(0.023\)/)[1]);
   assert.ok(pctX + DIGITS["%"].w * 23 <= 92, `100% ends at ${pctX + DIGITS["%"].w * 23}`);
-  // Every glyph the number line can show is there.
+  // Long labels shrink to fit before they're cut: NO RECEIVER fits whole.
+  assert.doesNotMatch(keySvg(view({ state: "noReceiver" })), new RegExp(drawn("…", GREY)));
+  // Every glyph either font is asked for is there.
   for (const c of "0123456789%–") assert.ok(DIGITS[c]?.d.startsWith("M"), c);
+  for (let c = 33; c < 127; c++) assert.ok(TEXT[String.fromCharCode(c)]?.d.startsWith("M"), String.fromCharCode(c));
+  assert.ok(TEXT[" "].w > 0 && !TEXT[" "].d);
 });
 
 test("websocket frames round-trip at every length encoding", () => {
@@ -184,7 +195,7 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     sd.send({ event: "willAppear", action: "com.fayewave.hyperlight.battery", context: "key1", payload: { settings: { showRemaining: true, showUpdate: true } } });
     const first = await until(() => sd.got.find((m) => m.event === "setImage" && m.context === "key1"), "first image");
     assert.ok(first.payload.image.startsWith("data:image/svg+xml,"));
-    assert.match(imageOf(first), new RegExp(`>Hyperlight<.*>~16H<.*${glyphs(60, "#fff")}`));
+    assert.match(imageOf(first), new RegExp(`${name}.*${drawn("~16H", GREY)}.*${digits(60, "#fff")}`));
 
     // Unchanged readings aren't re-sent; a new one is.
     const images = () => sd.got.filter((m) => m.event === "setImage");
@@ -192,13 +203,13 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     assert.equal(images().length, 1);
     tray.reading = { ...tray.reading, percent: 15, update: "v0.2.0" };
     const second = await until(() => images()[1], "updated image");
-    assert.match(imageOf(second), new RegExp(`>Hyperlight<.*${glyphs(15, COLORS.low)}.*fill="#64D2FF"`));
+    assert.match(imageOf(second), new RegExp(`${name}.*${digits(15, COLORS.low)}.*fill="#64D2FF"`));
 
     // Turning options off in the key's settings redraws it without them.
     sd.send({ event: "didReceiveSettings", context: "key1", payload: { settings: { showRemaining: false, showUpdate: false } } });
     const third = await until(() => images()[2], "image without options");
-    assert.match(imageOf(third), new RegExp(glyphs(15, COLORS.low)));
-    assert.doesNotMatch(imageOf(third), /~16H|#64D2FF/);
+    assert.match(imageOf(third), new RegExp(digits(15, COLORS.low)));
+    assert.doesNotMatch(imageOf(third), new RegExp(`${drawn("~16H", GREY)}|#64D2FF`));
 
     // A quick press asks the tray to read the battery now.
     sd.send({ event: "keyDown", context: "key1" });
@@ -216,8 +227,9 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     // Tray gone: the key says so.
     await new Promise((ok) => tray.server.close(ok));
     tray.server.closeAllConnections?.();
-    const gone = await until(() => images().find((m) => /TRAY</.test(imageOf(m))), "tray-gone image", 8000);
-    assert.match(imageOf(gone), />(TRAY OFF|OLD TRAY|NO TRAY)<.*>(Start|Update|Get)</);
+    const gone = await until(() => images().find((m) => new RegExp(drawn("TRAY", GREY)).test(imageOf(m))), "tray-gone image", 8000);
+    const said = (label, word) => `${drawn(label, GREY)}.*${drawn(word, GREY)}`;
+    assert.match(imageOf(gone), new RegExp(`(?:${said("TRAY OFF", "Start")}|${said("OLD TRAY", "Update")}|${said("NO TRAY", "Get")})`));
 
     // The plugin exits when Stream Deck closes the connection.
     sd.close();

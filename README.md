@@ -34,11 +34,11 @@ Download `com.fayewave.hyperlight.streamDeckPlugin` from
 [Releases](https://github.com/fayewave/hyperlight-tray/releases/latest) and double-click it. Then drag
 **Hyperlight Tray > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
 
-The key shows the battery percent over a bar, orange or red when it's low and blue while charging. In the key's
-settings you can add a line under the name for charging, asleep or the time remaining, and a blue dot when there's an
-update. Press the key to re-read the battery, or hold it to open the configurator. If the tray isn't running, pressing the key starts it.
-The battery number is drawn in Optician Sans by Fábio Duarte Martins and Simen Schikulski (SIL Open Font License
-1.1), bundled in the plugin, so there's no font to install.
+The key shows the battery percent over a bar, orange or red when it's low and blue while charging, with charging or
+the time remaining under the name. In the key's settings you can turn those lines off, or add an asleep line or a
+blue dot when there's an update. Press the key to re-read the battery, or hold it to open the configurator. If the tray isn't
+running, pressing the key starts it. Its text is drawn in Optician Sans (the number) and Bai Jamjuree Bold (the
+rest), both under the SIL Open Font License 1.1 and bundled in the plugin, so there are no fonts to install.
 
 ## Privacy and safety
 
