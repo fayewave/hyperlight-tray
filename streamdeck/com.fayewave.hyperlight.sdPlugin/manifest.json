@@ -1,9 +1,9 @@
 {
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
   "Name": "Hyperlight Battery",
-  "Version": "0.2.2.0",
+  "Version": "0.3.0.0",
   "Author": "fayewave",
-  "Description": "Shows your Hitscan Hyperlight mouse's battery on a key, like the Hyperlight Tray icon. Needs Hyperlight Tray running. Unofficial.",
+  "Description": "Shows your Hitscan Hyperlight mouse's battery on a key. Needs Hyperlight Tray running. Unofficial.",
   "UUID": "com.fayewave.hyperlight",
   "URL": "https://github.com/fayewave/hyperlight-tray",
   "Icon": "imgs/plugin",
