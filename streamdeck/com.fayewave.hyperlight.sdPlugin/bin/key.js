@@ -1,7 +1,7 @@
 // Draws the key in the same text-first style as the Aircon plugin's keys (after the
 // Apple Watch Modular complications): "Hyperlight" top left in white, the percent as
-// the biggest thing on the key (orange or red when low), a thin 0-100% bar (green up
-// to a dot at the level, grey after), and a small caps line underneath.
+// the biggest thing on the key (orange or red when low), a thin 0-100% bar (green, or
+// the number's orange or red, up to a dot at the level, grey after), and a small caps line underneath.
 //
 // Keys are drawn in a 96-unit box (one unit = one Stream Deck XL pixel) and handed to
 // Stream Deck as a 144px SVG. Stream Deck's SVG renderer is basic, so: no CSS, no
@@ -10,7 +10,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 /** Apple's system colours, as on the Aircon keys. */
-export const COLORS = { healthy: "#30D158", moderate: "#FF9F0A", low: "#FF453A", stale: "#8E8E93" };
+/** charging: an electric blue, deeper than the update dot's light blue. */
+export const COLORS = { healthy: "#30D158", moderate: "#FF9F0A", low: "#FF453A", stale: "#8E8E93", charging: "#1E9BFF" };
 const GREY = "#8E8E93";
 const DIM = "#636366";
 const TRACK = "#2C2C2E";
@@ -24,20 +25,20 @@ export function tone(percent) {
 
 /**
  * The key's own options (its settings in Stream Deck). The text lines are off until
- * turned on, so by default the bottom line just says Battery; the update dot is on.
+ * turned on, so by default the bottom line is empty; so is the update dot.
  */
 export function options(settings) {
   return {
     remaining: settings?.showRemaining === true,
     charging: settings?.showCharging === true,
     asleep: settings?.showAsleep === true,
-    update: settings?.showUpdate !== false,
+    update: settings?.showUpdate === true,
   };
 }
 
 /**
  * What to show for a tray reply (see tray.js); undefined means not read yet.
- * { percent, color, caption, bolt, dim, dot } for a reading (color: the number's
+ * { percent, color, caption, dim, dot } for a reading (color: the number's
  * colour when low, else null for white), or
  * { word, caption } for a key with no number ("Start / Tray").
  */
@@ -45,13 +46,13 @@ export function view(s, opts = options()) {
   const dot = Boolean(s?.update) && opts.update;
   switch (s?.state) {
     case "battery": {
-      const charging = s.charging && opts.charging;
-      const caption = charging ? "Charging" : !s.charging && opts.remaining && s.remaining ? s.remaining : "Battery";
-      const t = tone(s.percent);
-      return { percent: s.percent ?? null, color: t === "healthy" ? null : COLORS[t], caption, bolt: charging, dot };
+      const caption = s.charging && opts.charging ? "Charging" : !s.charging && opts.remaining && s.remaining ? s.remaining : "";
+      // Charging turns the number and bar blue whether or not the Charging text is on.
+      const t = s.charging ? "charging" : tone(s.percent);
+      return { percent: s.percent ?? null, color: t === "healthy" ? null : COLORS[t], caption, dot };
     }
     case "asleep":
-      return { percent: s.percent ?? null, color: null, caption: opts.asleep ? "Asleep" : "Battery", dim: true, dot };
+      return { percent: s.percent ?? null, color: null, caption: opts.asleep ? "Asleep" : "", dim: true, dot };
     case "noReceiver":
       return { word: "No", caption: "Receiver", dot };
     case "stopped":
@@ -61,7 +62,7 @@ export function view(s, opts = options()) {
     case "missing":
       return { word: "Get", caption: "Tray" };
     default: // "checking", or before the first reply
-      return { percent: null, color: null, caption: "Battery", dim: true };
+      return { percent: null, color: null, caption: "", dim: true };
   }
 }
 
@@ -77,6 +78,20 @@ export function pickFont(dirs = fontDirs()) {
   }
   return "Segoe UI";
 }
+/**
+ * The battery number's font: Optician Sans when installed (a free font after the
+ * letters on eye charts), else null for the same font as the rest of the key.
+ */
+export function pickNumberFont(dirs = fontDirs()) {
+  for (const dir of dirs) {
+    try {
+      if (fs.readdirSync(dir).some((f) => /^optician/i.test(f))) return "Optician Sans";
+    } catch {
+      // folder missing
+    }
+  }
+  return null;
+}
 function fontDirs() {
   const dirs = [path.join(process.env.WINDIR ?? "C:\\Windows", "Fonts")];
   if (process.env.LOCALAPPDATA) dirs.push(path.join(process.env.LOCALAPPDATA, "Microsoft", "Windows", "Fonts"));
@@ -84,6 +99,8 @@ function fontDirs() {
 }
 let FONT = "Segoe UI";
 export const setFont = (f) => (FONT = f);
+let NUM_FONT = null;
+export const setNumberFont = (f) => (NUM_FONT = f);
 
 /*
  * Stream Deck can't measure text for us, so: advance widths (thousandths of the font
@@ -100,6 +117,10 @@ const WIDTHS = {
     900: table("286,272,515,600,600,964,766,269,407,407,456,600,272,445,272,349,600,600,600,600,600,600,600,600,600,600,272,272,600,600,600,478,954,763,702,688,786,614,579,747,786,312,390,712,585,884,758,807,676,807,706,651,644,748,742,1128,698,645,625,401,349,401,600,500,399,568,620,484,620,555,402,626,606,281,287,580,348,902,606,602,620,620,434,496,426,601,542,868,572,541,487,438,316,438,600,816,272,389"),
   },
 };
+/** Optician Sans comes in one weight; widths of what the number line can show (from its hmtx table). */
+const OPTICIAN = new Map(Object.entries({ 0: 0.6, 1: 0.55, 2: 0.55, 3: 0.55, 4: 0.551, 5: 0.55, 6: 0.55, 7: 0.515, 8: 0.55, 9: 0.55, "%": 0.77, "–": 0.8 }));
+const opticianWidth = (str, size) => [...String(str)].reduce((w, ch) => w + (OPTICIAN.get(ch) ?? 0.8), 0) * size;
+
 /** Width of str in the current font. spacing = letter-spacing, added after each character. */
 export function textWidth(str, size, { weight = 800, spacing = 0 } = {}) {
   const t = (WIDTHS[FONT] ?? WIDTHS["Segoe UI"])[weight >= 850 ? 900 : 800];
@@ -120,8 +141,8 @@ function truncate(str, size, max, opts = {}) {
 /* ---------- primitives ---------- */
 const f2 = (n) => Number(n.toFixed(2));
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const text = (x, y, str, { size = 14, weight = 800, fill = "#fff", spacing = 0 } = {}) =>
-  `<text x="${f2(x)}" y="${f2(y)}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" fill="${fill}" ` +
+const text = (x, y, str, { size = 14, weight = 800, fill = "#fff", spacing = 0, family = FONT } = {}) =>
+  `<text x="${f2(x)}" y="${f2(y)}" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}" ` +
   `text-anchor="start"${spacing ? ` letter-spacing="${spacing}"` : ""}>${esc(str)}</text>`;
 const wrap = (body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 96 96">` +
@@ -147,17 +168,14 @@ function footer(str, color, max) {
   while (size > 11.5 && textWidth(str, size, o) > max) size -= 0.5;
   return text(X, 87, truncate(str, size, max, o), { size, ...o, fill: color });
 }
-/** A charging bolt, the Aircon plugin's "bolt" icon. */
-const bolt = (x, y, s, c) =>
-  `<g transform="translate(${f2(x)} ${f2(y)}) scale(${f2(s / 24)})"><path d="M13.8 1.8 4.6 13.6H11.4L10.2 22.2 19.4 10.4H12.6Z" fill="${c}"/></g>`;
 
-/** The 0-100% bar: green up to the level, the grey track after it, and a white dot at the level. */
-function bar(percent, dim) {
+/** The 0-100% bar: green (orange or red when low) up to the level, the grey track after it, and a white dot at the level. */
+function bar(percent, dim, color = COLORS.healthy) {
   const track = `<rect x="${X}" y="${BAR.y}" width="${BAR.w}" height="${BAR.h}" rx="${BAR.h / 2}" fill="${TRACK}"/>`;
   if (percent == null) return track;
   const p = Math.max(0, Math.min(100, percent)) / 100;
   let s = track;
-  if (p > 0) s += `<g opacity="${dim ? OFF.fade : 1}"><rect x="${X}" y="${BAR.y}" width="${f2(Math.max(BAR.h, BAR.w * p))}" height="${BAR.h}" rx="${BAR.h / 2}" fill="${COLORS.healthy}"/></g>`;
+  if (p > 0) s += `<g opacity="${dim ? OFF.fade : 1}"><rect x="${X}" y="${BAR.y}" width="${f2(Math.max(BAR.h, BAR.w * p))}" height="${BAR.h}" rx="${BAR.h / 2}" fill="${color}"/></g>`;
   s += `<circle cx="${f2(X + BAR.w * p)}" cy="${BAR.y + BAR.h / 2}" r="4.4" fill="${dim ? OFF.dot : "#fff"}" stroke="#000" stroke-width="2.2"/>`;
   return s;
 }
@@ -176,14 +194,32 @@ export function keySvg(v) {
   } else {
     const num = v.percent == null ? "–" : String(v.percent);
     s += name("#fff");
-    s += text(X - 1, NUM_Y, num, { size: 33, weight: 900, fill: v.dim ? OFF.number : (v.color ?? "#fff") });
+    // The number and its % in Optician Sans when installed (Regular only, so weight 400:
+    // asking for bold would get a smeared fake bold), else the key's own font.
+    const nf = NUM_FONT ? { family: NUM_FONT, weight: 400 } : { weight: 900 };
+    // Optician Sans spaces its digits wide, so they're pulled 6% of the size closer. Stream
+    // Deck ignores negative letter-spacing, so each digit is placed on its own.
+    const tight = (size) => (NUM_FONT ? -0.06 * size : 0);
+    const numWidth = (str, size) => (NUM_FONT ? opticianWidth(str, size) + tight(size) * [...str].length : textWidth(str, size, { weight: 900 }));
+    // Bigger than the Aircon keys' 33, sat 3 lower to make room; "100%" a size down to fit.
+    // Optician Sans's digits sit shorter than Segoe UI Black's, so it gets more.
+    const three = num.length >= 3;
+    const [size, pct] = NUM_FONT ? (three ? [38, 22] : [44, 25]) : three ? [34, 20] : [39, 23];
+    const y = NUM_Y + 3;
+    const numFill = v.dim ? OFF.number : (v.color ?? "#fff");
+    if (NUM_FONT) {
+      let x = X - 1;
+      for (const ch of num) {
+        s += text(x, y, ch, { size, ...nf, fill: numFill });
+        x += opticianWidth(ch, size) + tight(size);
+      }
+    } else s += text(X - 1, y, num, { size, ...nf, fill: numFill });
     // A small % after the number, like the Zones key's "/6" (grey, or the number's colour
-    // when low); a green bolt instead while charging.
-    const after = X + textWidth(num, 33, { weight: 900 }) - 1;
-    if (v.bolt) s += bolt(after, NUM_Y - 20, 20, COLORS.healthy);
-    else if (v.percent != null) s += text(after, NUM_Y, "%", { size: 20, weight: 900, fill: v.dim ? OFF.text : (v.color ?? GREY) });
-    s += bar(v.percent, v.dim);
-    s += footer(v.caption, v.dim ? OFF.text : GREY, footMax);
+    // when low or charging).
+    const after = X + numWidth(num, size) + (NUM_FONT ? 1.5 : -1);
+    if (v.percent != null) s += text(after, y, "%", { size: pct, ...nf, fill: v.dim ? OFF.text : (v.color ?? GREY) });
+    s += bar(v.percent, v.dim, v.color ?? COLORS.healthy);
+    if (v.caption) s += footer(v.caption, v.dim ? OFF.text : GREY, footMax);
   }
   if (v.dot) s += `<circle cx="84" cy="82.5" r="5" fill="${ACCENT}"/>`;
   return wrap(s);
