@@ -14,32 +14,33 @@ const num = (n) => `(?:>${n}<|${[...String(n)].map((d) => `>${d}<`).join(".*")})
 
 const PLUGIN = fileURLToPath(new URL("../com.fayewave.hyperlight.sdPlugin/bin/plugin.js", import.meta.url));
 
-test("key: Hyperlight in white, the percent and bar (orange/red when low), a dot at the level", () => {
+test("key: Hyperlight and a caps line on top, the percent and bar (orange/red when low) along the bottom", () => {
   const all = options({ showRemaining: true, showCharging: true, showAsleep: true, showUpdate: true });
   const svg = (s) => keySvg(view(s, all));
   // The number and its % in one colour: white/grey when healthy, orange or red when low.
   const num = (n, color, pct = color) => new RegExp(`fill="#fff"[^>]*>Hyperlight<.*fill="${color}"[^>]*>${n}<.*fill="${pct}"[^>]*>%<`);
   const k85 = svg({ state: "battery", percent: 85, charging: false, remaining: "~12h" });
   assert.match(k85, num(85, "#fff", "#8E8E93"));
-  assert.match(k85, />~12H</);
-  // Grey track the full 78 wide, green over it up to 85%.
-  assert.match(k85, new RegExp(`<rect x="9" y="66" width="78"[^>]*fill="#2C2C2E"/>.*<rect x="9" y="66" width="66.3"[^>]*fill="${COLORS.healthy}"`));
+  // The caps line sits under the name, above the number.
+  assert.match(k85, /y="23"[^>]*>Hyperlight<.*y="42"[^>]*>~12H<.*y="76"[^>]*>85</);
+  // Along the bottom: grey track the full 78 wide, green over it up to 85%.
+  assert.match(k85, new RegExp(`<rect x="9" y="84" width="78"[^>]*fill="#2C2C2E"/>.*<rect x="9" y="84" width="66.3"[^>]*fill="${COLORS.healthy}"`));
   // The dot sits at 85% along the 78-wide bar starting at x=9.
-  assert.match(k85, /<circle cx="75.3" cy="68.5"/);
+  assert.match(k85, /<circle cx="75.3" cy="86.5"/);
   assert.match(svg({ state: "battery", percent: 26 }), num(26, "#fff", "#8E8E93"));
-  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`fill="${COLORS.charging}"[^>]*>25<.*<rect x="9" y="66" width="19.5"[^>]*fill="${COLORS.charging}".*>CHARGING<`));
+  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`>CHARGING<.*fill="${COLORS.charging}"[^>]*>25<.*<rect x="9" y="84" width="19.5"[^>]*fill="${COLORS.charging}"`));
   assert.match(svg({ state: "battery", percent: 20 }), num(20, COLORS.moderate));
   const k8 = svg({ state: "battery", percent: 8 });
   assert.match(k8, num(8, COLORS.low));
   // The bar takes the number's colour when low.
-  assert.match(k8, new RegExp(`<rect x="9" y="66" width="6.24"[^>]*fill="${COLORS.low}"`));
-  assert.match(svg({ state: "battery", percent: 22 }), new RegExp(`<rect x="9" y="66" width="17.16"[^>]*fill="${COLORS.moderate}"`));
+  assert.match(k8, new RegExp(`<rect x="9" y="84" width="6.24"[^>]*fill="${COLORS.low}"`));
+  assert.match(svg({ state: "battery", percent: 22 }), new RegExp(`<rect x="9" y="84" width="17.16"[^>]*fill="${COLORS.moderate}"`));
   assert.match(svg({ state: "battery", percent: 100 }), /<circle cx="87"/);
-  assert.match(svg({ state: "asleep", percent: 60 }), /fill="#fff"[^>]*>Hyperlight<.*fill="#6C6C70"[^>]*>60<.*opacity="0.18".*>ASLEEP</);
-  assert.match(svg({ state: "noReceiver" }), />No<.*>RECEIVER</);
-  assert.match(svg({ state: "stopped" }), />Start<.*>TRAY</);
-  assert.match(svg({ state: "outdated" }), /font-size="22"[^>]*>Update<.*>TRAY</);
-  assert.match(svg({ state: "missing" }), />Get<.*>TRAY</);
+  assert.match(svg({ state: "asleep", percent: 60 }), /fill="#fff"[^>]*>Hyperlight<.*>ASLEEP<.*fill="#6C6C70"[^>]*>60<.*opacity="0.18"/);
+  assert.match(svg({ state: "noReceiver" }), />NO RECEIVER<.*>–</);
+  assert.match(svg({ state: "stopped" }), />TRAY OFF<.*>Start</);
+  assert.match(svg({ state: "outdated" }), />OLD TRAY<.*font-size="22"[^>]*>Update</);
+  assert.match(svg({ state: "missing" }), />NO TRAY<.*>Get</);
   assert.match(svg(undefined), />–</);
   assert.doesNotMatch(svg(undefined), /letter-spacing/);
   assert.doesNotMatch(svg({ state: "battery", percent: 85 }), /fill="#64D2FF"/);
@@ -47,9 +48,9 @@ test("key: Hyperlight in white, the percent and bar (orange/red when low), a dot
   assert.match(svg({ state: "battery", percent: 85, remaining: "<b>" }), />&lt;B&gt;</);
 });
 
-test("key options: text lines are opt-in (empty bottom line without them), and so is the update dot", () => {
+test("key options: text lines are opt-in (nothing under the name without them), and so is the update dot", () => {
   const s = { state: "battery", percent: 85, charging: false, remaining: "~12h", update: "v0.2.0" };
-  // Defaults: no bottom line (no letter-spaced caps text), just the update dot.
+  // Defaults: no caps line (no letter-spaced text) and no update dot.
   const plain = keySvg(view(s, options({})));
   assert.doesNotMatch(plain, /letter-spacing|BATTERY|#64D2FF/);
   assert.doesNotMatch(plain, /~12H/);
@@ -61,7 +62,7 @@ test("key options: text lines are opt-in (empty bottom line without them), and s
   // Charging and Asleep have their own options. Charging keeps the %, and has no bolt.
   const charging = { ...s, charging: true, remaining: null };
   const chargingKey = keySvg(view(charging, options({ showCharging: true })));
-  assert.match(chargingKey, new RegExp(`fill="${COLORS.charging}"[^>]*>%<.*>CHARGING<`));
+  assert.match(chargingKey, new RegExp(`>CHARGING<.*fill="${COLORS.charging}"[^>]*>%<`));
   assert.doesNotMatch(chargingKey, /<path/);
   const noCharging = keySvg(view(charging, options({ showRemaining: true })));
   // Still blue without the text.
@@ -80,12 +81,12 @@ test("key: the number and % in Optician Sans when it's installed", () => {
     setNumberFont("Optician Sans");
     const k = keySvg(view({ state: "battery", percent: 85 }));
     // One <text> per digit (Stream Deck ignores negative letter-spacing), 6% of the size closer.
-    assert.match(k, /x="8" [^>]*font-family="Optician Sans" font-size="44" font-weight="400"[^>]*>8<.*x="29.56" [^>]*>5<.*font-family="Optician Sans"[^>]*>%</);
+    assert.match(k, /x="8" [^>]*font-family="Optician Sans" font-size="46" font-weight="400"[^>]*>8<.*x="30.54" [^>]*>5<.*font-family="Optician Sans"[^>]*>%</);
     assert.doesNotMatch(k, /letter-spacing="-/);
     // The name and bottom line keep the key's own font.
     assert.match(keySvg(view({ state: "battery", percent: 85, remaining: "~12h" }, options({ showRemaining: true }))), /font-family="Segoe UI"[^>]*>Hyperlight<.*font-family="Segoe UI"[^>]*>~12H</);
     // "100%" a size down to fit.
-    assert.match(keySvg(view({ state: "battery", percent: 100 })), /font-size="38"[^>]*>1<.*>0<.*>0<.*font-size="22"[^>]*>%</);
+    assert.match(keySvg(view({ state: "battery", percent: 100 })), /font-size="40"[^>]*>1<.*>0<.*>0<.*font-size="23"[^>]*>%</);
   } finally {
     setNumberFont(null);
   }
@@ -180,7 +181,7 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     sd.send({ event: "willAppear", action: "com.fayewave.hyperlight.battery", context: "key1", payload: { settings: { showRemaining: true, showUpdate: true } } });
     const first = await until(() => sd.got.find((m) => m.event === "setImage" && m.context === "key1"), "first image");
     assert.ok(first.payload.image.startsWith("data:image/svg+xml,"));
-    assert.match(imageOf(first), new RegExp(`>Hyperlight<.*fill="#fff"[^>]*${num(60)}.*>~16H<`));
+    assert.match(imageOf(first), new RegExp(`>Hyperlight<.*>~16H<.*fill="#fff"[^>]*${num(60)}`));
 
     // Unchanged readings aren't re-sent; a new one is.
     const images = () => sd.got.filter((m) => m.event === "setImage");
@@ -212,8 +213,8 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     // Tray gone: the key says so.
     await new Promise((ok) => tray.server.close(ok));
     tray.server.closeAllConnections?.();
-    const gone = await until(() => images().find((m) => />TRAY</.test(imageOf(m))), "tray-gone image", 8000);
-    assert.match(imageOf(gone), />(Start|Get|Update)<.*>TRAY</);
+    const gone = await until(() => images().find((m) => /TRAY</.test(imageOf(m))), "tray-gone image", 8000);
+    assert.match(imageOf(gone), />(TRAY OFF|OLD TRAY|NO TRAY)<.*>(Start|Update|Get)</);
 
     // The plugin exits when Stream Deck closes the connection.
     sd.close();

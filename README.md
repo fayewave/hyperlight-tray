@@ -35,7 +35,7 @@ Download `com.fayewave.hyperlight.streamDeckPlugin` from
 **Hyperlight Tray > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
 
 The key shows the battery percent over a bar, orange or red when it's low and blue while charging. In the key's
-settings you can add a line under the bar for charging, asleep or the time remaining, and a blue dot when there's an
+settings you can add a line under the name for charging, asleep or the time remaining, and a blue dot when there's an
 update. Press the key to re-read the battery, or hold it to open the configurator. If the tray isn't running, pressing the key starts it.
 
 ## Privacy and safety

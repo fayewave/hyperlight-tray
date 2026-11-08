@@ -1,7 +1,8 @@
 // Draws the key in the same text-first style as the Aircon plugin's keys (after the
-// Apple Watch Modular complications): "Hyperlight" top left in white, the percent as
-// the biggest thing on the key (orange or red when low), a thin 0-100% bar (green, or
-// the number's orange or red, up to a dot at the level, grey after), and a small caps line underneath.
+// Apple Watch Modular complications), turned upside down below the name: "Hyperlight"
+// top left in white, a small caps line under it, then the percent as the biggest thing
+// on the key and a thin 0-100% bar along the bottom (green, orange or red by level, or
+// blue while charging, up to a dot at the level, grey after).
 //
 // Keys are drawn in a 96-unit box (one unit = one Stream Deck XL pixel) and handed to
 // Stream Deck as a 144px SVG. Stream Deck's SVG renderer is basic, so: no CSS, no
@@ -25,7 +26,7 @@ export function tone(percent) {
 
 /**
  * The key's own options (its settings in Stream Deck). The text lines are off until
- * turned on, so by default the bottom line is empty; so is the update dot.
+ * turned on, so by default the line under the name is empty; so is the update dot.
  */
 export function options(settings) {
   return {
@@ -40,7 +41,7 @@ export function options(settings) {
  * What to show for a tray reply (see tray.js); undefined means not read yet.
  * { percent, color, caption, dim, dot } for a reading (color: the number's
  * colour when low, else null for white), or
- * { word, caption } for a key with no number ("Start / Tray").
+ * { word, caption } for a key with no number ("Tray off / Start").
  */
 export function view(s, opts = options()) {
   const dot = Boolean(s?.update) && opts.update;
@@ -54,13 +55,13 @@ export function view(s, opts = options()) {
     case "asleep":
       return { percent: s.percent ?? null, color: null, caption: opts.asleep ? "Asleep" : "", dim: true, dot };
     case "noReceiver":
-      return { word: "No", caption: "Receiver", dot };
+      return { percent: null, color: GREY, caption: "No receiver", dot };
     case "stopped":
-      return { word: "Start", caption: "Tray" };
+      return { word: "Start", caption: "Tray off" };
     case "outdated":
-      return { word: "Update", caption: "Tray" };
+      return { word: "Update", caption: "Old tray" };
     case "missing":
-      return { word: "Get", caption: "Tray" };
+      return { word: "Get", caption: "No tray" };
     default: // "checking", or before the first reply
       return { percent: null, color: null, caption: "", dim: true };
   }
@@ -148,10 +149,11 @@ const wrap = (body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 96 96">` +
   `<rect width="96" height="96" fill="#000"/>${body}</svg>`;
 
-/* ---------- the layout (the Aircon plugin's modular.js) ---------- */
+/* ---------- the layout (the Aircon plugin's modular.js, upside down below the name) ---------- */
 const X = 9; // left edge of text and bar
-const NUM_Y = 57; // baseline of the big number
-const BAR = { y: 66, w: 78, h: 5 };
+const LABEL_Y = 42; // baseline of the caps line under the name
+const NUM_Y = 76; // baseline of the big number
+const BAR = { y: 84, w: 78, h: 5 };
 /** The name keeps the Aircon keys' 17px when it fits, else shrinks to fit the width. */
 const NAME = "Hyperlight";
 const NAME_MAX = 79;
@@ -160,13 +162,13 @@ function name(color) {
   const size = Math.min(17, Math.floor((NAME_MAX / textWidth(NAME, 1)) * 2) / 2);
   return text(X, 23, NAME, { size, fill: color });
 }
-/** The bottom line: 13px caps, down to 11.5px to fit, then cut with "…". */
-function footer(str, color, max) {
+/** The line under the name: 13px caps, down to 11.5px to fit, then cut with "…". */
+function label(str, color, max) {
   str = String(str).toUpperCase();
   const o = { weight: 900, spacing: 0.4 };
   let size = 13;
   while (size > 11.5 && textWidth(str, size, o) > max) size -= 0.5;
-  return text(X, 87, truncate(str, size, max, o), { size, ...o, fill: color });
+  return text(X, LABEL_Y, truncate(str, size, max, o), { size, ...o, fill: color });
 }
 
 /** The 0-100% bar: green (orange or red when low) up to the level, the grey track after it, and a white dot at the level. */
@@ -183,17 +185,18 @@ function bar(percent, dim, color = COLORS.healthy) {
 /** A 144×144 SVG for the key. */
 export function keySvg(v) {
   let s = "";
-  // "Update available": a blue dot at the right end of the bottom line (which then stops short of it).
-  const footMax = v.dot ? 68 : 80;
+  // "Update available": a blue dot at the right end of the line under the name (which then stops short of it).
+  const labelMax = v.dot ? 68 : 80;
   if (v.word != null) {
     s += name("#fff");
+    s += label(v.caption, GREY, labelMax);
     const size = Math.min(24, Math.floor(79 / textWidth(v.word, 1, { weight: 900 })));
     s += text(X - 1, NUM_Y, v.word, { size, weight: 900, fill: GREY });
     s += `<rect x="${X}" y="${BAR.y}" width="${BAR.w}" height="${BAR.h}" rx="${BAR.h / 2}" fill="${TRACK}"/>`;
-    s += footer(v.caption, GREY, footMax);
   } else {
     const num = v.percent == null ? "–" : String(v.percent);
     s += name("#fff");
+    if (v.caption) s += label(v.caption, v.dim ? OFF.text : GREY, labelMax);
     // The number and its % in Optician Sans when installed (Regular only, so weight 400:
     // asking for bold would get a smeared fake bold), else the key's own font.
     const nf = NUM_FONT ? { family: NUM_FONT, weight: 400 } : { weight: 900 };
@@ -201,11 +204,11 @@ export function keySvg(v) {
     // Deck ignores negative letter-spacing, so each digit is placed on its own.
     const tight = (size) => (NUM_FONT ? -0.06 * size : 0);
     const numWidth = (str, size) => (NUM_FONT ? opticianWidth(str, size) + tight(size) * [...str].length : textWidth(str, size, { weight: 900 }));
-    // Bigger than the Aircon keys' 33, sat 3 lower to make room; "100%" a size down to fit.
+    // Bigger than the Aircon keys' 33; "100%" a size down to fit.
     // Optician Sans's digits sit shorter than Segoe UI Black's, so it gets more.
     const three = num.length >= 3;
-    const [size, pct] = NUM_FONT ? (three ? [38, 22] : [44, 25]) : three ? [34, 20] : [39, 23];
-    const y = NUM_Y + 3;
+    const [size, pct] = NUM_FONT ? (three ? [40, 23] : [46, 26]) : three ? [34, 20] : [41, 24];
+    const y = NUM_Y;
     const numFill = v.dim ? OFF.number : (v.color ?? "#fff");
     if (NUM_FONT) {
       let x = X - 1;
@@ -219,9 +222,8 @@ export function keySvg(v) {
     const after = X + numWidth(num, size) + (NUM_FONT ? 1.5 : -1);
     if (v.percent != null) s += text(after, y, "%", { size: pct, ...nf, fill: v.dim ? OFF.text : (v.color ?? GREY) });
     s += bar(v.percent, v.dim, v.color ?? COLORS.healthy);
-    if (v.caption) s += footer(v.caption, v.dim ? OFF.text : GREY, footMax);
   }
-  if (v.dot) s += `<circle cx="84" cy="82.5" r="5" fill="${ACCENT}"/>`;
+  if (v.dot) s += `<circle cx="84" cy="37.5" r="5" fill="${ACCENT}"/>`;
   return wrap(s);
 }
 
