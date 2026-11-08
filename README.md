@@ -26,7 +26,7 @@ To uninstall: untick **Start with Windows**, exit, then delete the exe and `%APP
 ## Stream Deck Plugin
 
 Download `com.fayewave.hyperlight.streamDeckPlugin` from
-[Releases](https://github.com/fayewave/hyperlight-tray/releases/latest) and double-click it. Then drag
+[Releases](https://github.com/fayewave/hyperlight-tray/releases/latest) and open it. Then drag
 **Hyperlight Tray > Mouse Battery** onto a key. It needs Stream Deck 6.5 or later, and Hyperlight Tray running.
 
 ## Privacy and safety
@@ -35,7 +35,7 @@ No driver, no admin rights and no hooks. It uses the same user-mode HID calls as
 small web server (for the configurator and the Stream Deck plugin) listens on `localhost` only, and only the
 configurator page can change settings through it.
 
-It makes two internet requests. 
+It makes two internet requests: 
 - The configurator loads its fonts from Google Fonts.
 - Once a day, the tray asks
 GitHub's public API for the latest release. When there's a newer version, a blue dot appears on the tray number,
