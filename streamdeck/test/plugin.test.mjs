@@ -94,11 +94,12 @@ test("key: all text drawn from the bundled outlines, no fonts needed", () => {
   assert.doesNotMatch(k, /<text|font-family/);
   // The number: one path per glyph, 6% of the size closer than the font's spacing.
   assert.match(k, new RegExp(`translate\\(8 76\\) scale\\(0.046\\)" ${digits(8, "#fff")}.*translate\\(30.54 76\\) scale\\(0.046\\)" ${digits(5, "#fff")}.*scale\\(0.026\\)" ${digits("%", GREY)}`));
-  // "100%" a size down to fit, and ends inside the key.
+  // "100" keeps the full size and drops the %, ending inside the bar's width.
   const k100 = keySvg(view({ state: "battery", percent: 100 }));
-  assert.match(k100, new RegExp(`scale\\(0.04\\)" ${digits(1, "#fff")}.*${digits(0, "#fff")}.*${digits(0, "#fff")}.*scale\\(0.023\\)" ${digits("%", GREY)}`));
-  const pctX = Number(k100.match(/translate\(([\d.]+) 76\) scale\(0.023\)/)[1]);
-  assert.ok(pctX + DIGITS["%"].w * 23 <= 92, `100% ends at ${pctX + DIGITS["%"].w * 23}`);
+  assert.match(k100, new RegExp(`scale\\(0.046\\)" ${digits(1, "#fff")}.*scale\\(0.046\\)" ${digits(0, "#fff")}.*scale\\(0.046\\)" ${digits(0, "#fff")}`));
+  assert.doesNotMatch(k100, new RegExp(digits("%", GREY)));
+  const lastX = Math.max(...[...k100.matchAll(/translate\(([\d.]+) 76\)/g)].map((m) => Number(m[1])));
+  assert.ok(lastX + DIGITS["0"].w * 46 <= 87, `100 ends at ${lastX + DIGITS["0"].w * 46}`);
   // Long labels shrink to fit before they're cut: NO RECEIVER fits whole.
   assert.doesNotMatch(keySvg(view({ state: "noReceiver" })), new RegExp(drawn("…", GREY)));
   // Every glyph either font is asked for is there.

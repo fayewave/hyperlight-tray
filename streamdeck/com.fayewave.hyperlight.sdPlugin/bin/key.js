@@ -155,13 +155,13 @@ export function keySvg(v) {
     if (v.caption) s += label(v.caption, v.dim ? OFF.text : GREY, labelMax);
     // The number and its % in Optician Sans. Its digits are only half an em tall (about
     // Segoe UI Black's x-height), hence the big sizes, and spaced wide, so they're pulled
-    // 6% of the size closer. "100%" goes a size down to fit.
-    const [size, pct] = num.length >= 3 ? [40, 23] : [46, 26];
+    // 6% of the size closer. "100" drops the % rather than shrinking to fit it.
+    const size = 46;
     const n = draw(X - 1, NUM_Y, num, size, v.dim ? OFF.number : (v.color ?? "#fff"), { font: DIGITS, track: -0.06 * size });
     s += n.svg;
     // A small % after the number, like the Zones key's "/6" (grey, or the number's colour
     // when low or charging).
-    if (v.percent != null) s += draw(n.end + 2.5, NUM_Y, "%", pct, v.dim ? OFF.text : (v.color ?? GREY), { font: DIGITS }).svg;
+    if (v.percent != null && num.length < 3) s += draw(n.end + 2.5, NUM_Y, "%", 26, v.dim ? OFF.text : (v.color ?? GREY), { font: DIGITS }).svg;
     s += bar(v.percent, v.dim, v.color ?? COLORS.healthy);
   }
   if (v.dot) s += `<circle cx="84" cy="37.5" r="5" fill="${ACCENT}"/>`;
