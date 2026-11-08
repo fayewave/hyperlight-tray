@@ -1,11 +1,13 @@
 // Hyperlight Battery for Stream Deck: shows the mouse battery from Hyperlight Tray
-// on a key, the same number and colours as the tray icon.
+// on a key, in the same text-first style as the Aircon plugin's keys.
 //
 // Press: re-read the battery. Hold: open the configurator.
 // Without the tray running, press starts it (or opens the download page).
 import { connect } from "./socket.js";
 import { Tray, RELEASES, findTrayExe, launch, trayIsRunning } from "./tray.js";
-import { view, options, keySvg, dataUrl } from "./key.js";
+import { view, options, keySvg, dataUrl, setFont, pickFont } from "./key.js";
+
+setFont(pickFont());
 
 const POLL_MS = Number(process.env.HYPERLIGHT_POLL_MS) || 5000;
 const HOLD_MS = 500;

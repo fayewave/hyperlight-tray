@@ -11,48 +11,61 @@ import { encodeFrame, FrameReader, OP } from "../com.fayewave.hyperlight.sdPlugi
 
 const PLUGIN = fileURLToPath(new URL("../com.fayewave.hyperlight.sdPlugin/bin/plugin.js", import.meta.url));
 
-test("key shows the number in the tray's colours", () => {
+test("key: Hyperlight in white, the percent (orange/red when low), a green 0-100% bar with a dot", () => {
   const all = options({ showRemaining: true, showCharging: true, showAsleep: true });
   const svg = (s) => keySvg(view(s, all));
-  assert.match(svg({ state: "battery", percent: 85, charging: false, remaining: "~12h" }), new RegExp(`fill="${COLORS.healthy}">85<.*>~12h<`));
-  assert.match(svg({ state: "battery", percent: 26, charging: false }), new RegExp(`fill="${COLORS.healthy}">26<`));
-  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`fill="${COLORS.moderate}">25<.*>Charging<`));
-  assert.match(svg({ state: "battery", percent: 20, charging: false }), new RegExp(`fill="${COLORS.moderate}">20<`));
-  assert.match(svg({ state: "battery", percent: 8, charging: false }), new RegExp(`fill="${COLORS.low}">8<`));
-  assert.match(svg({ state: "battery", percent: 100 }), /font-size="76"[^>]*>100</);
-  assert.match(svg({ state: "asleep", percent: 60 }), new RegExp(`fill="${COLORS.stale}">60<.*>Asleep<`));
-  assert.match(svg({ state: "noReceiver" }), />–<.*>No receiver</);
-  assert.match(svg({ state: "stopped" }), />Start tray</);
-  assert.match(svg({ state: "missing" }), />Get tray</);
-  assert.match(svg(undefined), />–</);
-  assert.doesNotMatch(svg({ state: "battery", percent: 85 }), /circle/);
-  assert.match(svg({ state: "battery", percent: 85, update: "v0.2.0" }), /circle/);
-  assert.match(svg({ state: "battery", percent: 85, remaining: "<b>" }), />&lt;b&gt;</);
+  // The number and its % in one colour: white/grey when healthy, orange or red when low.
+  const num = (n, color, pct = color) => new RegExp(`fill="#fff"[^>]*>Hyperlight<.*fill="${color}"[^>]*>${n}<.*fill="${pct}"[^>]*>%<`);
+  const k85 = svg({ state: "battery", percent: 85, charging: false, remaining: "~12h" });
+  assert.match(k85, num(85, "#fff", "#8E8E93"));
+  assert.match(k85, />~12H</);
+  // Grey track the full 78 wide, green over it up to 85%.
+  assert.match(k85, new RegExp(`<rect x="9" y="66" width="78"[^>]*fill="#2C2C2E"/>.*<rect x="9" y="66" width="66.3"[^>]*fill="${COLORS.healthy}"`));
+  // The dot sits at 85% along the 78-wide bar starting at x=9.
+  assert.match(k85, /<circle cx="75.3" cy="68.5"/);
+  assert.match(svg({ state: "battery", percent: 26 }), num(26, "#fff", "#8E8E93"));
+  assert.match(svg({ state: "battery", percent: 25, charging: true }), new RegExp(`fill="${COLORS.moderate}"[^>]*>25<.*>CHARGING<`));
+  assert.match(svg({ state: "battery", percent: 20 }), num(20, COLORS.moderate));
+  const k8 = svg({ state: "battery", percent: 8 });
+  assert.match(k8, num(8, COLORS.low));
+  // The bar stays green when low.
+  assert.match(k8, new RegExp(`<rect x="9" y="66"[^>]*fill="${COLORS.healthy}"`));
+  assert.match(svg({ state: "battery", percent: 100 }), /<circle cx="87"/);
+  assert.match(svg({ state: "asleep", percent: 60 }), /fill="#fff"[^>]*>Hyperlight<.*fill="#6C6C70"[^>]*>60<.*opacity="0.18".*>ASLEEP</);
+  assert.match(svg({ state: "noReceiver" }), />No<.*>RECEIVER</);
+  assert.match(svg({ state: "stopped" }), />Start<.*>TRAY</);
+  assert.match(svg({ state: "outdated" }), /font-size="22"[^>]*>Update<.*>TRAY</);
+  assert.match(svg({ state: "missing" }), />Get<.*>TRAY</);
+  assert.match(svg(undefined), />–<.*>BATTERY</);
+  assert.doesNotMatch(svg({ state: "battery", percent: 85 }), /fill="#64D2FF"/);
+  assert.match(svg({ state: "battery", percent: 85, update: "v0.2.0" }), /fill="#64D2FF"/);
+  assert.match(svg({ state: "battery", percent: 85, remaining: "<b>" }), />&lt;B&gt;</);
 });
 
-test("key options: text lines are opt-in (number centred without them), the dot opt-out", () => {
+test("key options: text lines are opt-in (Battery without them), the dot opt-out", () => {
   const s = { state: "battery", percent: 85, charging: false, remaining: "~12h", update: "v0.2.0" };
-  // Defaults: just the number, centred, plus the update dot.
+  // Defaults: the bottom line says Battery, plus the update dot.
   const plain = keySvg(view(s, options({})));
-  assert.match(plain, /y="106"[^>]*>85<.*circle/);
-  assert.doesNotMatch(plain, /~12h/);
-  assert.match(keySvg(view(s)), /y="106"[^>]*>85</);
-  const all = keySvg(view(s, options({ showRemaining: true })));
-  assert.match(all, /y="90"[^>]*>85<.*>~12h<.*circle/);
+  assert.match(plain, />BATTERY<.*fill="#64D2FF"/);
+  assert.doesNotMatch(plain, /~12H/);
+  assert.match(keySvg(view(s)), />BATTERY</);
+  assert.match(keySvg(view(s, options({ showRemaining: true }))), />~12H<.*fill="#64D2FF"/);
   const bare = keySvg(view(s, options({ showRemaining: false, showUpdate: false })));
-  assert.match(bare, /y="106"[^>]*>85</);
-  assert.doesNotMatch(bare, /~12h|circle/);
-  // Charging and Asleep have their own options.
+  assert.match(bare, />BATTERY</);
+  assert.doesNotMatch(bare, /~12H|#64D2FF/);
+  // Charging and Asleep have their own options; charging also gets a bolt.
   const charging = { ...s, charging: true, remaining: null };
-  assert.match(keySvg(view(charging, options({ showCharging: true }))), />Charging</);
+  const chargingKey = keySvg(view(charging, options({ showCharging: true })));
+  assert.match(chargingKey, /<path[^>]*fill="#30D158".*>CHARGING</);
+  assert.doesNotMatch(chargingKey, />%</);
   const noCharging = keySvg(view(charging, options({ showRemaining: true })));
-  assert.match(noCharging, /y="106"[^>]*>85</);
-  assert.doesNotMatch(noCharging, /Charging/);
+  assert.match(noCharging, />BATTERY</);
+  assert.doesNotMatch(noCharging, /CHARGING|<path/);
   const asleep = { state: "asleep", percent: 42 };
-  assert.match(keySvg(view(asleep, options({ showAsleep: true }))), />Asleep</);
+  assert.match(keySvg(view(asleep, options({ showAsleep: true }))), />ASLEEP</);
   const noAsleep = keySvg(view(asleep, options({})));
-  assert.match(noAsleep, new RegExp(`y="106"[^>]*fill="${COLORS.stale}">42<`));
-  assert.doesNotMatch(noAsleep, /Asleep/);
+  assert.match(noAsleep, /fill="#6C6C70"[^>]*>42<.*>BATTERY</);
+  assert.doesNotMatch(noAsleep, /ASLEEP/);
 });
 
 test("websocket frames round-trip at every length encoding", () => {
@@ -143,7 +156,7 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     sd.send({ event: "willAppear", action: "com.fayewave.hyperlight.battery", context: "key1", payload: { settings: { showRemaining: true } } });
     const first = await until(() => sd.got.find((m) => m.event === "setImage" && m.context === "key1"), "first image");
     assert.ok(first.payload.image.startsWith("data:image/svg+xml,"));
-    assert.match(imageOf(first), new RegExp(`fill="${COLORS.healthy}">60<.*>~16h<`));
+    assert.match(imageOf(first), />Hyperlight<.*fill="#fff"[^>]*>60<.*>~16H</);
 
     // Unchanged readings aren't re-sent; a new one is.
     const images = () => sd.got.filter((m) => m.event === "setImage");
@@ -151,13 +164,13 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     assert.equal(images().length, 1);
     tray.reading = { ...tray.reading, percent: 15, update: "v0.2.0" };
     const second = await until(() => images()[1], "updated image");
-    assert.match(imageOf(second), new RegExp(`fill="${COLORS.low}">15<.*circle`));
+    assert.match(imageOf(second), new RegExp(`>Hyperlight<.*fill="${COLORS.low}"[^>]*>15<.*fill="#64D2FF"`));
 
     // Turning options off in the key's settings redraws it without them.
     sd.send({ event: "didReceiveSettings", context: "key1", payload: { settings: { showRemaining: false, showUpdate: false } } });
     const third = await until(() => images()[2], "image without options");
-    assert.match(imageOf(third), /y="106"[^>]*>15</);
-    assert.doesNotMatch(imageOf(third), /~16h|circle/);
+    assert.match(imageOf(third), />15<.*>BATTERY</);
+    assert.doesNotMatch(imageOf(third), /~16H|#64D2FF/);
 
     // A quick press asks the tray to read the battery now.
     sd.send({ event: "keyDown", context: "key1" });
@@ -175,8 +188,8 @@ test("plugin draws the battery, refreshes on press and opens the configurator on
     // Tray gone: the key says so.
     await new Promise((ok) => tray.server.close(ok));
     tray.server.closeAllConnections?.();
-    const gone = await until(() => images().find((m) => /tray</.test(imageOf(m))), "tray-gone image", 8000);
-    assert.match(imageOf(gone), />(Start|Get|Update) tray</);
+    const gone = await until(() => images().find((m) => />TRAY</.test(imageOf(m))), "tray-gone image", 8000);
+    assert.match(imageOf(gone), />(Start|Get|Update)<.*>TRAY</);
 
     // The plugin exits when Stream Deck closes the connection.
     sd.close();
