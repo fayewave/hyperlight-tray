@@ -5,10 +5,9 @@
 // Without the tray running, press starts it (or opens the download page).
 import { connect } from "./socket.js";
 import { Tray, RELEASES, findTrayExe, launch, trayIsRunning } from "./tray.js";
-import { view, options, keySvg, dataUrl, setFont, pickFont, setNumberFont, pickNumberFont } from "./key.js";
+import { view, options, keySvg, dataUrl, setFont, pickFont } from "./key.js";
 
 setFont(pickFont());
-setNumberFont(pickNumberFont());
 
 const POLL_MS = Number(process.env.HYPERLIGHT_POLL_MS) || 5000;
 const HOLD_MS = 500;

@@ -9,6 +9,7 @@
 // filters, no tspan offsets, and only installed fonts.
 import fs from "node:fs";
 import path from "node:path";
+import { DIGITS } from "./digits.js";
 
 /** Apple's system colours, as on the Aircon keys. */
 /** charging: an electric blue, deeper than the update dot's light blue. */
@@ -17,7 +18,7 @@ const GREY = "#8E8E93";
 const DIM = "#636366";
 const TRACK = "#2C2C2E";
 const ACCENT = "#64D2FF";
-/** Asleep: the number, bar, dot and caption dimmed, like a switched-off AC. */
+/** No reading yet: the dash and caption dimmed, like a switched-off AC. */
 const OFF = { number: "#6C6C70", dot: "#77777C", fade: 0.18, text: "#636366" };
 
 export function tone(percent) {
@@ -52,8 +53,8 @@ export function view(s, opts = options()) {
       const t = s.charging ? "charging" : tone(s.percent);
       return { percent: s.percent ?? null, color: t === "healthy" ? null : COLORS[t], caption, dot };
     }
-    case "asleep":
-      return { percent: s.percent ?? null, color: null, caption: opts.asleep ? "Asleep" : "", dim: true, dot };
+    case "asleep": // the last reading, as it was: the mouse just isn't answering
+      return { percent: s.percent ?? null, color: s.percent == null || tone(s.percent) === "healthy" ? null : COLORS[tone(s.percent)], caption: opts.asleep ? "Asleep" : "", dot };
     case "noReceiver":
       return { percent: null, color: GREY, caption: "No receiver", dot };
     case "stopped":
@@ -79,20 +80,6 @@ export function pickFont(dirs = fontDirs()) {
   }
   return "Segoe UI";
 }
-/**
- * The battery number's font: Optician Sans when installed (a free font after the
- * letters on eye charts), else null for the same font as the rest of the key.
- */
-export function pickNumberFont(dirs = fontDirs()) {
-  for (const dir of dirs) {
-    try {
-      if (fs.readdirSync(dir).some((f) => /^optician/i.test(f))) return "Optician Sans";
-    } catch {
-      // folder missing
-    }
-  }
-  return null;
-}
 function fontDirs() {
   const dirs = [path.join(process.env.WINDIR ?? "C:\\Windows", "Fonts")];
   if (process.env.LOCALAPPDATA) dirs.push(path.join(process.env.LOCALAPPDATA, "Microsoft", "Windows", "Fonts"));
@@ -100,8 +87,6 @@ function fontDirs() {
 }
 let FONT = "Segoe UI";
 export const setFont = (f) => (FONT = f);
-let NUM_FONT = null;
-export const setNumberFont = (f) => (NUM_FONT = f);
 
 /*
  * Stream Deck can't measure text for us, so: advance widths (thousandths of the font
@@ -118,10 +103,6 @@ const WIDTHS = {
     900: table("286,272,515,600,600,964,766,269,407,407,456,600,272,445,272,349,600,600,600,600,600,600,600,600,600,600,272,272,600,600,600,478,954,763,702,688,786,614,579,747,786,312,390,712,585,884,758,807,676,807,706,651,644,748,742,1128,698,645,625,401,349,401,600,500,399,568,620,484,620,555,402,626,606,281,287,580,348,902,606,602,620,620,434,496,426,601,542,868,572,541,487,438,316,438,600,816,272,389"),
   },
 };
-/** Optician Sans comes in one weight; widths of what the number line can show (from its hmtx table). */
-const OPTICIAN = new Map(Object.entries({ 0: 0.6, 1: 0.55, 2: 0.55, 3: 0.55, 4: 0.551, 5: 0.55, 6: 0.55, 7: 0.515, 8: 0.55, 9: 0.55, "%": 0.77, "–": 0.8 }));
-const opticianWidth = (str, size) => [...String(str)].reduce((w, ch) => w + (OPTICIAN.get(ch) ?? 0.8), 0) * size;
-
 /** Width of str in the current font. spacing = letter-spacing, added after each character. */
 export function textWidth(str, size, { weight = 800, spacing = 0 } = {}) {
   const t = (WIDTHS[FONT] ?? WIDTHS["Segoe UI"])[weight >= 850 ? 900 : 800];
@@ -145,6 +126,21 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const text = (x, y, str, { size = 14, weight = 800, fill = "#fff", spacing = 0, family = FONT } = {}) =>
   `<text x="${f2(x)}" y="${f2(y)}" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}" ` +
   `text-anchor="start"${spacing ? ` letter-spacing="${spacing}"` : ""}>${esc(str)}</text>`;
+/**
+ * The number line in Optician Sans, drawn from the outlines in digits.js so it looks
+ * the same on every PC (Stream Deck only draws text in installed fonts). Each glyph is
+ * placed on its own, track = extra space after each, in units. Returns the end x.
+ */
+function glyphs(x, y, str, size, fill, track = 0) {
+  let s = "";
+  const k = size / 1000;
+  for (const ch of String(str)) {
+    const g = DIGITS[ch] ?? DIGITS["–"];
+    s += `<path transform="translate(${f2(x)} ${f2(y)}) scale(${Number(k.toFixed(5))})" d="${g.d}" fill="${fill}"/>`;
+    x += g.w * size + track;
+  }
+  return { svg: s, end: x };
+}
 const wrap = (body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 96 96">` +
   `<rect width="96" height="96" fill="#000"/>${body}</svg>`;
@@ -197,30 +193,15 @@ export function keySvg(v) {
     const num = v.percent == null ? "–" : String(v.percent);
     s += name("#fff");
     if (v.caption) s += label(v.caption, v.dim ? OFF.text : GREY, labelMax);
-    // The number and its % in Optician Sans when installed (Regular only, so weight 400:
-    // asking for bold would get a smeared fake bold), else the key's own font.
-    const nf = NUM_FONT ? { family: NUM_FONT, weight: 400 } : { weight: 900 };
-    // Optician Sans spaces its digits wide, so they're pulled 6% of the size closer. Stream
-    // Deck ignores negative letter-spacing, so each digit is placed on its own.
-    const tight = (size) => (NUM_FONT ? -0.06 * size : 0);
-    const numWidth = (str, size) => (NUM_FONT ? opticianWidth(str, size) + tight(size) * [...str].length : textWidth(str, size, { weight: 900 }));
-    // Bigger than the Aircon keys' 33; "100%" a size down to fit.
-    // Optician Sans's digits sit shorter than Segoe UI Black's, so it gets more.
-    const three = num.length >= 3;
-    const [size, pct] = NUM_FONT ? (three ? [40, 23] : [46, 26]) : three ? [34, 20] : [41, 24];
-    const y = NUM_Y;
-    const numFill = v.dim ? OFF.number : (v.color ?? "#fff");
-    if (NUM_FONT) {
-      let x = X - 1;
-      for (const ch of num) {
-        s += text(x, y, ch, { size, ...nf, fill: numFill });
-        x += opticianWidth(ch, size) + tight(size);
-      }
-    } else s += text(X - 1, y, num, { size, ...nf, fill: numFill });
+    // The number and its % in Optician Sans. Its digits are only half an em tall (about
+    // Segoe UI Black's x-height), hence the big sizes, and spaced wide, so they're pulled
+    // 6% of the size closer. "100%" goes a size down to fit.
+    const [size, pct] = num.length >= 3 ? [40, 23] : [46, 26];
+    const n = glyphs(X - 1, NUM_Y, num, size, v.dim ? OFF.number : (v.color ?? "#fff"), -0.06 * size);
+    s += n.svg;
     // A small % after the number, like the Zones key's "/6" (grey, or the number's colour
     // when low or charging).
-    const after = X + numWidth(num, size) + (NUM_FONT ? 1.5 : -1);
-    if (v.percent != null) s += text(after, y, "%", { size: pct, ...nf, fill: v.dim ? OFF.text : (v.color ?? GREY) });
+    if (v.percent != null) s += glyphs(n.end + 2.5, NUM_Y, "%", pct, v.dim ? OFF.text : (v.color ?? GREY)).svg;
     s += bar(v.percent, v.dim, v.color ?? COLORS.healthy);
   }
   if (v.dot) s += `<circle cx="84" cy="37.5" r="5" fill="${ACCENT}"/>`;

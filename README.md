@@ -37,6 +37,8 @@ Download `com.fayewave.hyperlight.streamDeckPlugin` from
 The key shows the battery percent over a bar, orange or red when it's low and blue while charging. In the key's
 settings you can add a line under the name for charging, asleep or the time remaining, and a blue dot when there's an
 update. Press the key to re-read the battery, or hold it to open the configurator. If the tray isn't running, pressing the key starts it.
+The battery number is drawn in Optician Sans by Fábio Duarte Martins and Simen Schikulski (SIL Open Font License
+1.1), bundled in the plugin, so there's no font to install.
 
 ## Privacy and safety
 
