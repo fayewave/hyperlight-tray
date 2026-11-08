@@ -20,8 +20,7 @@ An unofficial, open-source alternative to the Hitscan Utility, for the original 
 
 ## Install
 
-1. Download `hyperlight-tray.exe` from [Releases](https://github.com/fayewave/hyperlight-tray/releases/latest), or
-   [build it](#build).
+1. Download `hyperlight-tray.exe` from [Releases](https://github.com/fayewave/hyperlight-tray/releases/latest).
 2. Put it somewhere permanent, e.g. `%LOCALAPPDATA%\Programs\HyperlightTray\`.
 3. Run it, click the battery number in the tray, and tick **Start with Windows**.
 
@@ -56,19 +55,6 @@ It makes two internet requests. The configurator loads its fonts from Google Fon
 GitHub's public API for the latest release. When there's a newer version, a blue dot appears on the tray number,
 and the tray menu and configurator link to the release page. Nothing is downloaded or installed automatically.
 Turn **Check for updates** off in the configurator to stop this request.
-
-## Build
-
-Needs Rust (MSVC toolchain) and the Windows SDK.
-
-```
-cargo build --release
-```
-
-Tests: `cargo test`, `node --test web/test` and `node --test streamdeck/test`. `pwsh tools/pack-streamdeck.ps1`
-packs the Stream Deck plugin into `dist/`. `hyperlight-probe --settings` prints the mouse's settings
-(read-only), which is handy for bug reports. The reverse-engineered protocol is documented in
-[PROTOCOL.md](PROTOCOL.md).
 
 ## License
 
